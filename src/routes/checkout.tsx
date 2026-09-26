@@ -461,7 +461,7 @@ function WilayaSelect({
   const [query, setQuery] = useState("");
   const [wilayas, setWilayas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -584,29 +584,49 @@ function WilayaSelect({
               ) : (
                 list.map((w) => (
                   <li key={w.code}>
-                    <button
-                      type="button"
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        handleSelect(w.code);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:bg-secondary transition ${
-                        w.code === value ? "bg-secondary" : ""
-                      }`}
-                    >
-                      <span>
-                        <span className="text-muted-foreground mr-2">
-                          {w.code}
-                        </span>
+  <button
+    type="button"
+    onPointerDown={(e) => {
+      pointerStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+      };
+    }}
+    onPointerUp={(e) => {
+      const start = pointerStartRef.current;
 
-                        {w.name}
-                      </span>
+      if (!start) return;
 
-                      <span className="text-xs text-muted-foreground">
-                        {formatCurrency(w.rates.home)}
-                      </span>
-                    </button>
-                  </li>
+      const dx = Math.abs(e.clientX - start.x);
+      const dy = Math.abs(e.clientY - start.y);
+
+      pointerStartRef.current = null;
+
+      // Si le doigt a bougé, c'était un scroll → ne pas sélectionner
+      if (dx > 8 || dy > 8) {
+        return;
+      }
+
+      // Sinon c'était un vrai tap → sélectionner
+      handleSelect(w.code);
+    }}
+    className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:bg-secondary transition ${
+      w.code === value ? "bg-secondary" : ""
+    }`}
+  >
+    <span>
+      <span className="text-muted-foreground mr-2">
+        {w.code}
+      </span>
+
+      {w.name}
+    </span>
+
+    <span className="text-xs text-muted-foreground">
+      {formatCurrency(w.rates.home)}
+    </span>
+  </button>
+</li>
                 ))
               )}
             </ul>
