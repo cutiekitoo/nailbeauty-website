@@ -586,7 +586,10 @@ function WilayaSelect({
                   <li key={w.code}>
                     <button
                       type="button"
-                      onClick={() => handleSelect(w.code)}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        handleSelect(w.code);
+                      }}
                       className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:bg-secondary transition ${
                         w.code === value ? "bg-secondary" : ""
                       }`}
