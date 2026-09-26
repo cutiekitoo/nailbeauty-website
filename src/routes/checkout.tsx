@@ -48,15 +48,34 @@ function Checkout() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [shippingFee, setShippingFee] = useState<number | null>(null);
+  const [wilayaRates, setWilayaRates] = useState<{
+    home: number;
+    office: number;
+  } | null>(null);
 
-  // Update shipping fee when wilaya or method changes
+ // Load shipping rates when the Wilaya changes
   useEffect(() => {
-    async function updateFee() {
-      const fee = await shippingService.getShippingFee(wilayaCode || null, method);
-      setShippingFee(fee);
+  async function loadShippingRates() {
+    if (!wilayaCode) {
+      setWilayaRates(null);
+      setShippingFee(null);
+      return;
     }
-    updateFee();
-  }, [wilayaCode, method]);
+
+    const wilaya = await shippingService.get(wilayaCode);
+
+    if (!wilaya || !wilaya.enabled) {
+      setWilayaRates(null);
+      setShippingFee(null);
+      return;
+    }
+
+    setWilayaRates(wilaya.rates);
+    setShippingFee(wilaya.rates[method]);
+  }
+
+  loadShippingRates();
+ }, [wilayaCode, method]);
 
   const total = subtotal + (shippingFee ?? 0);
 
@@ -470,7 +489,7 @@ function WilayaSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute z-40 mt-2 w-full rounded-2xl bg-popover border border-border shadow-[var(--shadow-glow)] overflow-hidden">
+          <div className="fixed left-4 right-4 top-[15%] z-50 max-h-[70vh] overflow-hidden rounded-2xl bg-popover border border-border shadow-[var(--shadow-glow)] sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:max-h-64 sm:w-full">
             <div className="p-2 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
