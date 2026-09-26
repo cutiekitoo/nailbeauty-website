@@ -250,7 +250,9 @@ function Checkout() {
 
             <span
               className={`mt-0.5 grid place-items-center h-5 w-5 rounded-full border ${
-                active ? "border-primary bg-primary" : "border-border"
+                active
+                  ? "border-primary bg-primary"
+                  : "border-border"
               }`}
             >
               {active && (
@@ -259,10 +261,15 @@ function Checkout() {
             </span>
           </div>
 
-          {/* ✅ FIX BUG ICI */}
-          <p className="mt-3 text-sm font-medium text-primary">
-            {formatCurrency(m.value === "home" ? 1200 : 900)}
-          </p>
+        <p className="mt-3 text-sm font-medium text-primary">
+            {wilayaRates !== null
+             ? formatCurrency(
+              m.value === "home"
+               ? wilayaRates.home
+               : wilayaRates.office
+              )
+             : "Sélectionnez une wilaya"}
+        </p>
         </button>
       );
     })}
