@@ -1,34 +1,52 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Search,
-  Sparkles,
-  Truck,
-  ShieldCheck
-} from "lucide-react";
+import { Search, Sparkles, Truck, ShieldCheck } from "lucide-react";
 
 import heroImg from "@/assets/index-image.jpg";
+
 import { CartProvider } from "@/lib/cart-context";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import { ProductCard } from "@/components/ProductCard";
 import { productsService, type Product } from "@/lib/products-service";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nail Beauty — Beautiful Nails, Beautiful You" },
+      {
+        title: "Nail Beauty — Beautiful Nails, Beautiful You",
+      },
       {
         name: "description",
         content:
           "Premium nail polish, art stickers, brushes and tools. Salon-quality results at home with Nail Beauty.",
       },
-      { property: "og:title", content: "Nail Beauty — Beautiful Nails, Beautiful You" },
+
+      // Open Graph — aperçu lors du partage du site
+      {
+        property: "og:title",
+        content: "Nail Beauty — Beautiful Nails, Beautiful You",
+      },
       {
         property: "og:description",
         content: "Discover our latest nail products and accessories.",
       },
+      {
+        property: "og:image",
+        content:
+          "https://nailbeauty-website-8rii.vercel.app/photo_2026-09-26_18-58-38.jpg?v=2",
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        property: "og:url",
+        content: "https://nailbeauty-website-8rii.vercel.app/",
+      },
     ],
   }),
+
   component: Home,
 });
 
@@ -48,13 +66,14 @@ function Home() {
 
 function Hero() {
   const scrollToProducts = () => {
-    document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("products")?.scrollIntoView({
+      behavior: "smooth",
+    });
   };
 
   return (
     <section className="mx-auto max-w-7xl px-5 sm:px-8 pt-10 sm:pt-12 pb-8">
       <div className="grid lg:grid-cols-2 gap-8 items-center">
-
         {/* LEFT CONTENT */}
         <div className="space-y-5">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/60 text-accent-foreground text-xs font-medium">
@@ -63,7 +82,9 @@ function Hero() {
           </span>
 
           <h1 className="font-display text-4xl sm:text-5xl leading-tight">
-            Des ongles <span className="text-primary italic">parfaits</span><br />
+            Des ongles{" "}
+            <span className="text-primary italic">parfaits</span>
+            <br />
             en quelques minutes 💅
           </h1>
 
@@ -85,6 +106,7 @@ function Hero() {
                 <Truck className="h-4 w-4" />
                 Livraison gratuite 20 000 DA+
               </span>
+
               <span className="flex items-center gap-1">
                 <ShieldCheck className="h-4 w-4" />
                 Qualité pro
@@ -96,6 +118,7 @@ function Hero() {
         {/* RIGHT IMAGE */}
         <div className="relative">
           <div className="absolute -inset-4 bg-gradient-to-br from-blush/40 via-lavender/30 to-transparent rounded-[2rem] blur-2xl" />
+
           <div className="relative aspect-[4/3] rounded-[2rem] overflow-hidden shadow-[var(--shadow-glow)] border border-white/60">
             <img
               src={heroImg}
@@ -104,7 +127,6 @@ function Hero() {
             />
           </div>
         </div>
-
       </div>
     </section>
   );
