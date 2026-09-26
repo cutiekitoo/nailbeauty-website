@@ -7,7 +7,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 
-import heroImg from "@/assets/photo_2026-09-26_18-58-38.jpg";
+import heroImg from "@/assets/index-image.jpg";
 import { CartProvider } from "@/lib/cart-context";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
