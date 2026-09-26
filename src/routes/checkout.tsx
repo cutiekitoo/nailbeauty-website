@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { ChevronRight, MapPin, Package, Phone, User, Wallet, Search } from "lucide-react";
 import { CartProvider, useCart } from "@/lib/cart-context";
 import { Header } from "@/components/Header";
@@ -462,44 +462,106 @@ function WilayaSelect({
   const [wilayas, setWilayas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     async function loadWilayas() {
-      const data = await shippingService.list();
-      setWilayas(data);
-      setLoading(false);
+      try {
+        const data = await shippingService.list();
+        setWilayas(data);
+      } finally {
+        setLoading(false);
+      }
     }
+
     loadWilayas();
   }, []);
 
+  // Ferme le dropdown lorsqu'on clique/touche en dehors
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target)
+      ) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [open]);
+
   const selected = wilayas.find((w) => w.code === value);
+
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
+
     const base = wilayas.filter((w) => w.enabled);
+
     if (!q) return base;
+
     return base.filter(
-      (w) => w.name.toLowerCase().includes(q) || w.code.includes(q),
+      (w) =>
+        w.name.toLowerCase().includes(q) ||
+        w.code.includes(q)
     );
   }, [query, wilayas]);
 
+  const handleSelect = (code: string) => {
+    // Sélection
+    onChange(code);
+
+    // Fermeture immédiate du menu
+    setOpen(false);
+    setQuery("");
+  };
+
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={`${inputCls} flex items-center justify-between text-left`}
       >
         <span className={selected ? "" : "text-muted-foreground/70"}>
-          {selected ? `${selected.code} — ${selected.name}` : "Select your wilaya"}
+          {selected
+            ? `${selected.code} — ${selected.name}`
+            : "Select your wilaya"}
         </span>
-        <ChevronRight className={`h-4 w-4 transition ${open ? "rotate-90" : ""}`} />
+
+        <ChevronRight
+          className={`h-4 w-4 transition ${
+            open ? "rotate-90" : ""
+          }`}
+        />
       </button>
+
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          {/* Fond cliquable uniquement pour fermer */}
+          <div
+            className="fixed inset-0 z-30"
+            onPointerDown={() => {
+              setOpen(false);
+              setQuery("");
+            }}
+            aria-hidden="true"
+          />
+
           <div className="fixed left-4 right-4 top-[15%] z-50 max-h-[70vh] overflow-hidden rounded-2xl bg-popover border border-border shadow-[var(--shadow-glow)] sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:max-h-64 sm:w-full">
             <div className="p-2 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
                 <input
                   autoFocus
                   value={query}
@@ -509,27 +571,34 @@ function WilayaSelect({
                 />
               </div>
             </div>
+
             <ul className="max-h-64 overflow-y-auto py-1">
-              {list.length === 0 ? (
-                <li className="px-4 py-3 text-sm text-muted-foreground">No matches.</li>
+              {loading ? (
+                <li className="px-4 py-3 text-sm text-muted-foreground">
+                  Loading...
+                </li>
+              ) : list.length === 0 ? (
+                <li className="px-4 py-3 text-sm text-muted-foreground">
+                  No matches.
+                </li>
               ) : (
                 list.map((w) => (
                   <li key={w.code}>
                     <button
                       type="button"
-                      onClick={() => {
-                        onChange(w.code);
-                        setOpen(false);
-                        setQuery("");
-                      }}
+                      onClick={() => handleSelect(w.code)}
                       className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:bg-secondary transition ${
                         w.code === value ? "bg-secondary" : ""
                       }`}
                     >
                       <span>
-                        <span className="text-muted-foreground mr-2">{w.code}</span>
+                        <span className="text-muted-foreground mr-2">
+                          {w.code}
+                        </span>
+
                         {w.name}
                       </span>
+
                       <span className="text-xs text-muted-foreground">
                         {formatCurrency(w.rates.home)}
                       </span>
