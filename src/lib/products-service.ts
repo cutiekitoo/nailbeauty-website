@@ -63,7 +63,7 @@ function fromDbProduct(row: any): AdminProduct {
     name: row.name,
     price: row.price,
     stock: row.stock,
-    rating: 5, // Default rating since DB doesn't have this field
+    rating: row.rating ?? 5,
     shortDescription: row.description,
     description: row.description,
     images: row.images || [],
@@ -113,6 +113,7 @@ export const productsService = {
         price: input.price,
         stock: input.stock,
         images: input.images,
+        rating: input.rating,
       })
       .select()
       .single();
