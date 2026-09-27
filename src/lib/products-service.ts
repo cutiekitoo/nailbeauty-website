@@ -132,6 +132,7 @@ export const productsService = {
     if (patch.stock !== undefined) updateData.stock = patch.stock;
     if (patch.description !== undefined) updateData.description = patch.description;
     if (patch.images !== undefined) updateData.images = patch.images;
+    if (patch.rating !== undefined) updateData.rating = patch.rating;
     
     const { data, error } = await supabase
       .from('products')
