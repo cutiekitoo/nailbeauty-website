@@ -9,6 +9,7 @@ declare global {
   
   export function initMetaPixel() {
     if (typeof window === "undefined") return;
+  
     if (window.fbq) return;
   
     const n: any = function (...args: any[]) {
@@ -28,9 +29,11 @@ declare global {
   
     const script = document.createElement("script");
     script.async = true;
-    script.src = "https://connect.facebook.net/en_US/fbevents.js";
+    script.src =
+      "https://connect.facebook.net/en_US/fbevents.js";
   
-    const firstScript = document.getElementsByTagName("script")[0];
+    const firstScript =
+      document.getElementsByTagName("script")[0];
   
     if (firstScript?.parentNode) {
       firstScript.parentNode.insertBefore(script, firstScript);
@@ -38,30 +41,29 @@ declare global {
       document.head.appendChild(script);
     }
   
-    // Meta Pixel initialization
-    window.fbq?.("init", PIXEL_ID);
+    if (window.fbq) {
+      window.fbq("init", PIXEL_ID);
+    }
   }
   
   export function trackPageView() {
     if (typeof window === "undefined") return;
-    if (!window.fbq) return;
   
-    window.fbq("track", "PageView");
+    initMetaPixel();
+  
+    window.fbq?.("track", "PageView");
   }
   
-  /**
-   * ViewContent
-   * Déclenché lorsqu'une fiche produit est consultée.
-   */
   export function trackViewContent(product: {
     id: string;
     name: string;
     price: number;
   }) {
     if (typeof window === "undefined") return;
-    if (!window.fbq) return;
   
-    window.fbq("track", "ViewContent", {
+    initMetaPixel();
+  
+    window.fbq?.("track", "ViewContent", {
       content_ids: [product.id],
       content_type: "product",
       content_name: product.name,
@@ -70,10 +72,6 @@ declare global {
     });
   }
   
-  /**
-   * AddToCart
-   * Déclenché lorsqu'un produit est ajouté au panier.
-   */
   export function trackAddToCart(
     product: {
       id: string;
@@ -83,9 +81,10 @@ declare global {
     quantity: number,
   ) {
     if (typeof window === "undefined") return;
-    if (!window.fbq) return;
   
-    window.fbq("track", "AddToCart", {
+    initMetaPixel();
+  
+    window.fbq?.("track", "AddToCart", {
       content_ids: [product.id],
       content_type: "product",
       content_name: product.name,
@@ -100,19 +99,16 @@ declare global {
     });
   }
   
-  /**
-   * InitiateCheckout
-   * Déclenché lorsqu'un client commence le processus de commande.
-   */
   export function trackInitiateCheckout(params: {
     contentIds: string[];
     numItems: number;
     value: number;
   }) {
     if (typeof window === "undefined") return;
-    if (!window.fbq) return;
   
-    window.fbq("track", "InitiateCheckout", {
+    initMetaPixel();
+  
+    window.fbq?.("track", "InitiateCheckout", {
       content_ids: params.contentIds,
       content_type: "product",
       num_items: params.numItems,
@@ -121,10 +117,6 @@ declare global {
     });
   }
   
-  /**
-   * Purchase
-   * Déclenché uniquement après la création réussie d'une commande.
-   */
   export function trackPurchase(params: {
     contentIds: string[];
     numItems: number;
@@ -132,14 +124,17 @@ declare global {
     orderId?: string;
   }) {
     if (typeof window === "undefined") return;
-    if (!window.fbq) return;
   
-    window.fbq("track", "Purchase", {
+    initMetaPixel();
+  
+    window.fbq?.("track", "Purchase", {
       content_ids: params.contentIds,
       content_type: "product",
       num_items: params.numItems,
       value: params.value,
       currency: "DZD",
-      ...(params.orderId ? { order_id: params.orderId } : {}),
+      ...(params.orderId
+        ? { order_id: params.orderId }
+        : {}),
     });
   }
