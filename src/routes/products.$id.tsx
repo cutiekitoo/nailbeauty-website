@@ -10,8 +10,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
 import { CartProvider, useCart } from "@/lib/cart-context";
-import { productsService, type Product } from "@/lib/products-service";
+import {
+  productsService,
+  type Product,
+} from "@/lib/products-service";
 import { formatCurrency } from "@/lib/currency";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
@@ -22,13 +26,17 @@ import { trackViewContent } from "@/lib/meta-pixel";
 export const Route = createFileRoute("/products/$id")({
   head: () => ({
     meta: [
-      { title: "Product — Nail Beauty" },
+      {
+        title: "Product — Nail Beauty",
+      },
       {
         name: "description",
-        content: "View product details from Nail Beauty.",
+        content:
+          "View product details from Nail Beauty.",
       },
     ],
   }),
+
   component: ProductPage,
 });
 
@@ -47,16 +55,25 @@ function ProductPage() {
 
 function Body() {
   const { id } = Route.useParams();
-  const [product, setProduct] = useState<Product | null>(null);
-  const [related, setRelated] = useState<Product[]>([]);
-  const [loaded, setLoaded] = useState(false);
+
+  const [product, setProduct] =
+    useState<Product | null>(null);
+
+  const [related, setRelated] =
+    useState<Product[]>([]);
+
+  const [loaded, setLoaded] =
+    useState(false);
 
   useEffect(() => {
     const update = async () => {
-      const p = await productsService.getStorefront(id);
+      const p =
+        await productsService.getStorefront(id);
+
       setProduct(p);
 
-      const list = await productsService.listStorefront();
+      const list =
+        await productsService.listStorefront();
 
       setRelated(
         list
@@ -72,7 +89,9 @@ function Body() {
     return productsService.subscribe(update);
   }, [id]);
 
-  if (!loaded) return null;
+  if (!loaded) {
+    return null;
+  }
 
   if (!product) {
     return (
@@ -81,7 +100,11 @@ function Body() {
           <h1 className="font-display text-4xl mb-3">
             Product not found
           </h1>
-          <Link to="/" className="text-primary underline">
+
+          <Link
+            to="/"
+            className="text-primary underline"
+          >
             Back to shop
           </Link>
         </div>
@@ -95,10 +118,14 @@ function Body() {
         to="/"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition mb-8"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to shop
+        <ArrowLeft className="h-4 w-4" />
+        Back to shop
       </Link>
 
-      <ProductDetails key={product.id} product={product} />
+      <ProductDetails
+        key={product.id}
+        product={product}
+      />
 
       <DescriptionSection product={product} />
 
@@ -107,15 +134,24 @@ function Body() {
   );
 }
 
-function ProductDetails({ product }: { product: Product }) {
+function ProductDetails({
+  product,
+}: {
+  product: Product;
+}) {
   const { add, open } = useCart();
+
   const [qty, setQty] = useState(1);
-  const [activeImage, setActiveImage] = useState(
-    product.gallery[0] ?? product.image
-  );
+
+  const [activeImage, setActiveImage] =
+    useState(
+      product.gallery[0] ?? product.image
+    );
 
   useEffect(() => {
-    setActiveImage(product.gallery[0] ?? product.image);
+    setActiveImage(
+      product.gallery[0] ?? product.image
+    );
   }, [product.gallery, product.image]);
 
   // Meta Pixel — ViewContent
@@ -129,24 +165,32 @@ function ProductDetails({ product }: { product: Product }) {
 
   const inStock = product.stock > 0;
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!inStock) {
-      toast.error(`${product.name} is out of stock`);
+      toast.error(
+        `${product.name} is out of stock`
+      );
+
       return;
     }
 
-    let added = 0;
+    const success = await add(
+      product.id,
+      qty
+    );
 
-    for (let i = 0; i < qty; i++) {
-      add(product.id);
-      added++;
+    if (!success) {
+      return;
     }
 
-    if (added === 0) return;
-
-    toast.success(`${product.name} added to bag`, {
-      description: `Quantity: ${added} · ${formatCurrency(product.price * added)}`,
-    });
+    toast.success(
+      `${product.name} added to bag`,
+      {
+        description: `Quantity: ${qty} · ${formatCurrency(
+          product.price * qty
+        )}`,
+      }
+    );
 
     open();
   };
@@ -160,6 +204,7 @@ function ProductDetails({ product }: { product: Product }) {
             className="absolute -inset-4 bg-gradient-to-br from-blush/40 to-lavender/30 rounded-[3rem] blur-2xl"
             aria-hidden
           />
+
           <div className="relative aspect-square rounded-[2rem] overflow-hidden shadow-[var(--shadow-glow)] border border-white/60 bg-card">
             <img
               key={activeImage}
@@ -172,18 +217,23 @@ function ProductDetails({ product }: { product: Product }) {
 
         <div className="grid grid-cols-4 gap-3">
           {product.gallery.map((img, i) => {
-            const isActive = img === activeImage;
+            const isActive =
+              img === activeImage;
 
             return (
               <button
                 key={`${img}-${i}`}
-                onClick={() => setActiveImage(img)}
+                onClick={() =>
+                  setActiveImage(img)
+                }
                 className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all bg-card ${
                   isActive
                     ? "border-primary shadow-[var(--shadow-soft)] scale-[0.98]"
                     : "border-border/60 hover:border-primary/60 opacity-80 hover:opacity-100"
                 }`}
-                aria-label={`View image ${i + 1}`}
+                aria-label={`View image ${
+                  i + 1
+                }`}
               >
                 <img
                   src={img}
@@ -198,9 +248,11 @@ function ProductDetails({ product }: { product: Product }) {
 
       {/* Info */}
       <div className="flex flex-col gap-5">
-        {(product as any).tag || (product as any).category ? (
+        {(product as any).tag ||
+        (product as any).category ? (
           <span className="self-start px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-accent text-accent-foreground">
-            {(product as any).tag || (product as any).category}
+            {(product as any).tag ||
+              (product as any).category}
           </span>
         ) : null}
 
@@ -209,16 +261,21 @@ function ProductDetails({ product }: { product: Product }) {
         </h1>
 
         <div className="flex items-center gap-2 text-amber-500">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star
-              key={i}
-              className={`h-4 w-4 ${
-                i < Math.round(product.rating)
-                  ? "fill-current"
-                  : "opacity-30"
-              }`}
-            />
-          ))}
+          {Array.from({ length: 5 }).map(
+            (_, i) => (
+              <Star
+                key={i}
+                className={`h-4 w-4 ${
+                  i <
+                  Math.round(
+                    product.rating
+                  )
+                    ? "fill-current"
+                    : "opacity-30"
+                }`}
+              />
+            )
+          )}
 
           <span className="text-sm text-muted-foreground ml-1">
             {product.rating} · 1.2k reviews
@@ -257,7 +314,9 @@ function ProductDetails({ product }: { product: Product }) {
           <div className="inline-flex items-center rounded-full border border-border bg-card shadow-[var(--shadow-soft)]">
             <button
               onClick={() =>
-                setQty((q) => Math.max(1, q - 1))
+                setQty((q) =>
+                  Math.max(1, q - 1)
+                )
               }
               className="h-12 w-12 grid place-items-center hover:bg-secondary rounded-l-full transition"
               aria-label="Decrease quantity"
@@ -271,13 +330,19 @@ function ProductDetails({ product }: { product: Product }) {
               max={product.stock}
               value={qty}
               onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
+                const v = parseInt(
+                  e.target.value,
+                  10
+                );
 
                 if (!Number.isNaN(v)) {
                   setQty(
                     Math.max(
                       1,
-                      Math.min(product.stock, v)
+                      Math.min(
+                        product.stock,
+                        v
+                      )
                     )
                   );
                 }
@@ -289,7 +354,10 @@ function ProductDetails({ product }: { product: Product }) {
             <button
               onClick={() =>
                 setQty((q) =>
-                  Math.min(product.stock, q + 1)
+                  Math.min(
+                    product.stock,
+                    q + 1
+                  )
                 )
               }
               className="h-12 w-12 grid place-items-center hover:bg-secondary rounded-r-full transition"
@@ -304,7 +372,8 @@ function ProductDetails({ product }: { product: Product }) {
             onClick={handleAdd}
             className="flex-1 h-12 px-6 rounded-full bg-primary text-primary-foreground font-semibold shadow-[var(--shadow-soft)] hover:brightness-110 active:scale-[0.98] transition inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ShoppingBag className="h-4 w-4" /> Add to Cart
+            <ShoppingBag className="h-4 w-4" />
+            Add to Cart
           </button>
         </div>
       </div>
@@ -328,30 +397,34 @@ function DescriptionSection({
           {product.fullDescription}
         </p>
 
-        {product.usage && product.usage.length > 0 && (
-          <>
-            <h3 className="font-display text-xl mt-8 mb-4 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" /> How to Use
-            </h3>
+        {product.usage &&
+          product.usage.length > 0 && (
+            <>
+              <h3 className="font-display text-xl mt-8 mb-4 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                How to Use
+              </h3>
 
-            <ol className="space-y-3">
-              {product.usage.map((step, i) => (
-                <li
-                  key={i}
-                  className="flex gap-3 text-sm text-foreground/80"
-                >
-                  <span className="shrink-0 grid place-items-center h-6 w-6 rounded-full bg-accent text-accent-foreground text-xs font-semibold">
-                    {i + 1}
-                  </span>
+              <ol className="space-y-3">
+                {product.usage.map(
+                  (step, i) => (
+                    <li
+                      key={i}
+                      className="flex gap-3 text-sm text-foreground/80"
+                    >
+                      <span className="shrink-0 grid place-items-center h-6 w-6 rounded-full bg-accent text-accent-foreground text-xs font-semibold">
+                        {i + 1}
+                      </span>
 
-                  <span className="leading-relaxed">
-                    {step}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </>
-        )}
+                      <span className="leading-relaxed">
+                        {step}
+                      </span>
+                    </li>
+                  )
+                )}
+              </ol>
+            </>
+          )}
       </div>
 
       <div className="rounded-3xl bg-gradient-to-br from-blush/40 via-card to-lavender/40 border border-white/70 shadow-[var(--shadow-soft)] p-7 sm:p-9">
@@ -362,20 +435,22 @@ function DescriptionSection({
         <ul className="space-y-3">
           {product.benefits &&
           product.benefits.length > 0 ? (
-            product.benefits.map((b, i) => (
-              <li
-                key={i}
-                className="flex gap-3 items-start text-sm text-foreground/85"
-              >
-                <span className="shrink-0 grid place-items-center h-6 w-6 rounded-full bg-primary text-primary-foreground">
-                  <Check className="h-3.5 w-3.5" />
-                </span>
+            product.benefits.map(
+              (b, i) => (
+                <li
+                  key={i}
+                  className="flex gap-3 items-start text-sm text-foreground/85"
+                >
+                  <span className="shrink-0 grid place-items-center h-6 w-6 rounded-full bg-primary text-primary-foreground">
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
 
-                <span className="leading-relaxed">
-                  {b}
-                </span>
-              </li>
-            ))
+                  <span className="leading-relaxed">
+                    {b}
+                  </span>
+                </li>
+              )
+            )
           ) : (
             <p className="text-sm text-muted-foreground italic">
               No benefits listed yet.
@@ -415,7 +490,10 @@ function RelatedSection({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {products.map((p) => (
-          <ProductCard key={p.id} product={p} />
+          <ProductCard
+            key={p.id}
+            product={p}
+          />
         ))}
       </div>
     </section>
