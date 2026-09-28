@@ -1,6 +1,16 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+
 import { toast } from "sonner";
+
 import { productsService, type Product } from "./products-service";
+import { trackAddToCart } from "./meta-pixel";
 
 export type CartItem = { id: string; quantity: number };
 
@@ -21,6 +31,7 @@ type CartCtx = {
 };
 
 const Ctx = createContext<CartCtx | null>(null);
+
 const STORAGE_KEY = "nail-beauty-cart-v1";
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -32,6 +43,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
+
       if (raw) {
         setItems(JSON.parse(raw));
       }
@@ -54,6 +66,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, hydrated]);
 
@@ -61,13 +74,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const detailed = items
       .map((it) => {
         const product = allProducts.find((p) => p.id === it.id);
+
         return product ? { product, quantity: it.quantity } : null;
       })
-      .filter((x): x is { product: Product; quantity: number } => x !== null);
+      .filter(
+        (x): x is { product: Product; quantity: number } => x !== null
+      );
 
-    const outOfStockItems = detailed.filter((d) => d.product.stock <= 0);
+    const outOfStockItems = detailed.filter(
+      (d) => d.product.stock <= 0
+    );
+
     const count = items.reduce((s, i) => s + i.quantity, 0);
-    const subtotal = detailed.reduce((s, d) => s + d.product.price * d.quantity, 0);
+
+    const subtotal = detailed.reduce(
+      (s, d) => s + d.product.price * d.quantity,
+      0
+    );
 
     return {
       items,
@@ -77,21 +100,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
       outOfStockItems,
       hasOutOfStock: outOfStockItems.length > 0,
       isOpen,
+
       open: () => setIsOpen(true),
+
       close: () => setIsOpen(false),
 
       add: async (id) => {
         const product = await productsService.getStorefront(id);
 
         if (!product || product.stock <= 0) {
-          toast.error(`${product?.name ?? "This product"} is out of stock`);
+          toast.error(
+            `${product?.name ?? "This product"} is out of stock`
+          );
           return false;
         }
 
-        const current = items.find((p) => p.id === id)?.quantity ?? 0;
+        const current =
+          items.find((p) => p.id === id)?.quantity ?? 0;
 
         if (current + 1 > product.stock) {
-          toast.error(`Only ${product.stock} in stock for ${product.name}`);
+          toast.error(
+            `Only ${product.stock} in stock for ${product.name}`
+          );
           return false;
         }
 
@@ -109,17 +139,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return [...prev, { id, quantity: 1 }];
         });
 
+        // Meta Pixel — AddToCart
+        trackAddToCart(product, 1);
+
         return true;
       },
 
-      remove: (id) => setItems((prev) => prev.filter((p) => p.id !== id)),
+      remove: (id) =>
+        setItems((prev) => prev.filter((p) => p.id !== id)),
 
       setQuantity: async (id: string, q: number) => {
         if (q > 0) {
-          const product = await productsService.getStorefront(id);
+          const product =
+            await productsService.getStorefront(id);
 
           if (product && q > product.stock) {
-            toast.error(`Only ${product.stock} in stock for ${product.name}`);
+            toast.error(
+              `Only ${product.stock} in stock for ${product.name}`
+            );
+
             q = product.stock;
           }
         }
@@ -128,7 +166,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           q <= 0
             ? prev.filter((p) => p.id !== id)
             : prev.map((p) =>
-                p.id === id ? { ...p, quantity: q } : p
+                p.id === id
+                  ? { ...p, quantity: q }
+                  : p
               )
         );
       },
@@ -137,7 +177,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
   }, [items, isOpen, allProducts]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useCart() {
