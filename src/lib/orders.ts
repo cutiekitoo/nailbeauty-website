@@ -12,7 +12,7 @@ export type OrderItem = {
 
 export type OrderStatus =
   | "pending"
-  | "processing"
+  | "confirmed"
   | "shipped"
   | "delivered"
   | "cancelled";
@@ -43,7 +43,7 @@ export type Order = {
 
 export const ORDER_STATUSES: OrderStatus[] = [
   "pending",
-  "processing",
+  "confirmed",
   "shipped",
   "delivered",
   "cancelled",
