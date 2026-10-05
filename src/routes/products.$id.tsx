@@ -143,51 +143,89 @@ function ProductDetails({
 
   const [qty, setQty] = useState(1);
 
-  const [activeImage, setActiveImage] =
-    useState(
-      product.gallery[0] ?? product.image
-    );
+  const variants = product.variants ?? [];
+  const hasVariants = variants.length > 0;
+
+  const [selectedVariantId, setSelectedVariantId] = useState<
+    string | undefined
+  >(variants[0]?.id);
+
+  const selectedVariant = hasVariants
+    ? variants.find((v) => v.id === selectedVariantId) ??
+      variants[0]
+    : undefined;
+
+  const currentPrice = selectedVariant?.price ?? product.price;
+  const currentStock = selectedVariant?.stock ?? product.stock;
+
+  const [activeImage, setActiveImage] = useState(
+    selectedVariant?.image ??
+      product.gallery[0] ??
+      product.image
+  );
 
   useEffect(() => {
-    setActiveImage(
-      product.gallery[0] ?? product.image
-    );
-  }, [product.gallery, product.image]);
+    const nextImage =
+      selectedVariant?.image ??
+      product.gallery[0] ??
+      product.image;
+
+    setActiveImage(nextImage);
+    setQty(1);
+  }, [
+    selectedVariant?.id,
+    selectedVariant?.image,
+    product.gallery,
+    product.image,
+  ]);
 
   // Meta Pixel — ViewContent
   useEffect(() => {
     trackViewContent({
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: currentPrice,
     });
-  }, [product.id]);
+  }, [product.id, currentPrice, product.name]);
 
-  const inStock = product.stock > 0;
+  const inStock = currentStock > 0;
+
+  const handleVariantChange = (variantId: string) => {
+    setSelectedVariantId(variantId);
+    setQty(1);
+  };
 
   const handleAdd = async () => {
     if (!inStock) {
       toast.error(
-        `${product.name} is out of stock`
+        `${
+          selectedVariant
+            ? `${product.name} — ${selectedVariant.name}`
+            : product.name
+        } is out of stock`
       );
-
       return;
     }
 
     const success = await add(
       product.id,
-      qty
+      qty,
+      selectedVariant?.id
     );
 
     if (!success) {
       return;
     }
 
+    const productLabel = selectedVariant
+      ? `${product.name} — ${selectedVariant.name}`
+      : product.name;
+
     toast.success(
-      `${product.name} added to bag`,
+      `${productLabel} added to bag`,
       {
         description: `Quantity: ${qty} · ${formatCurrency(
-          product.price * qty
+          currentPrice * qty
         )}`,
       }
     );
@@ -217,23 +255,18 @@ function ProductDetails({
 
         <div className="grid grid-cols-4 gap-3">
           {product.gallery.map((img, i) => {
-            const isActive =
-              img === activeImage;
+            const isActive = img === activeImage;
 
             return (
               <button
                 key={`${img}-${i}`}
-                onClick={() =>
-                  setActiveImage(img)
-                }
+                onClick={() => setActiveImage(img)}
                 className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all bg-card ${
                   isActive
                     ? "border-primary shadow-[var(--shadow-soft)] scale-[0.98]"
                     : "border-border/60 hover:border-primary/60 opacity-80 hover:opacity-100"
                 }`}
-                aria-label={`View image ${
-                  i + 1
-                }`}
+                aria-label={`View image ${i + 1}`}
               >
                 <img
                   src={img}
@@ -261,35 +294,83 @@ function ProductDetails({
         </h1>
 
         <div className="flex items-center gap-2 text-amber-500">
-          {Array.from({ length: 5 }).map(
-            (_, i) => (
-              <Star
-                key={i}
-                className={`h-4 w-4 ${
-                  i <
-                  Math.round(
-                    product.rating
-                  )
-                    ? "fill-current"
-                    : "opacity-30"
-                }`}
-              />
-            )
-          )}
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star
+              key={i}
+              className={`h-4 w-4 ${
+                i < Math.round(product.rating)
+                  ? "fill-current"
+                  : "opacity-30"
+              }`}
+            />
+          ))}
 
           <span className="text-sm text-muted-foreground ml-1">
             {product.rating} · 1.2k reviews
           </span>
         </div>
 
+        {/* Price */}
         <p className="font-display text-4xl text-foreground">
-          {formatCurrency(product.price)}
+          {formatCurrency(currentPrice)}
         </p>
 
         <p className="text-muted-foreground leading-relaxed">
           {product.description}
         </p>
 
+        {/* Variants */}
+        {hasVariants && (
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold">
+                Choose a color
+              </span>
+
+              {selectedVariant && (
+                <span className="text-sm text-muted-foreground">
+                  {selectedVariant.name} ·{" "}
+                  {selectedVariant.code}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {variants.map((variant) => {
+                const isSelected =
+                  variant.id === selectedVariant?.id;
+
+                const variantInStock =
+                  variant.stock > 0;
+
+                return (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    disabled={!variantInStock}
+                    onClick={() =>
+                      handleVariantChange(variant.id)
+                    }
+                    className={`px-4 py-2.5 rounded-full border text-sm font-medium transition-all ${
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]"
+                        : variantInStock
+                        ? "border-border bg-card hover:border-primary/60 hover:bg-secondary"
+                        : "border-border/50 bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    {variant.name}
+                    <span className="ml-1 opacity-70">
+                      ({variant.code})
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Stock */}
         <div
           className={`inline-flex items-center gap-2 self-start text-sm font-medium ${
             inStock
@@ -306,17 +387,16 @@ function ProductDetails({
           />
 
           {inStock
-            ? `In Stock · ${product.stock} available`
+            ? `In Stock · ${currentStock} available`
             : "Out of Stock"}
         </div>
 
+        {/* Quantity + Add */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4">
           <div className="inline-flex items-center rounded-full border border-border bg-card shadow-[var(--shadow-soft)]">
             <button
               onClick={() =>
-                setQty((q) =>
-                  Math.max(1, q - 1)
-                )
+                setQty((q) => Math.max(1, q - 1))
               }
               className="h-12 w-12 grid place-items-center hover:bg-secondary rounded-l-full transition"
               aria-label="Decrease quantity"
@@ -327,7 +407,7 @@ function ProductDetails({
             <input
               type="number"
               min={1}
-              max={product.stock}
+              max={currentStock}
               value={qty}
               onChange={(e) => {
                 const v = parseInt(
@@ -339,10 +419,7 @@ function ProductDetails({
                   setQty(
                     Math.max(
                       1,
-                      Math.min(
-                        product.stock,
-                        v
-                      )
+                      Math.min(currentStock, v)
                     )
                   );
                 }
@@ -355,7 +432,7 @@ function ProductDetails({
               onClick={() =>
                 setQty((q) =>
                   Math.min(
-                    product.stock,
+                    currentStock,
                     q + 1
                   )
                 )
@@ -380,7 +457,6 @@ function ProductDetails({
     </div>
   );
 }
-
 function DescriptionSection({
   product,
 }: {

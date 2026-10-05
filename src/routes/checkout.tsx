@@ -183,12 +183,27 @@ function Checkout() {
         const fresh = await productsService.getStorefront(
           d.product.id
         );
-
-        if (!fresh || fresh.stock <= 0) {
+      
+        if (!fresh) {
           freshOOS.push(d.product.name);
+          continue;
+        }
+      
+        const currentStock = d.variant
+          ? fresh.variants?.find(
+              (v) => v.id === d.variant?.id
+            )?.stock ?? 0
+          : fresh.stock;
+      
+        if (currentStock <= 0) {
+          freshOOS.push(
+            d.variant
+              ? `${d.product.name} — ${d.variant.name}`
+              : d.product.name
+          );
         }
       }
-
+      
       if (freshOOS.length > 0) {
         setErrors((prev) => ({
           ...prev,
@@ -196,26 +211,38 @@ function Checkout() {
             ", "
           )}. Please remove them to continue.`,
         }));
-
+      
         setSubmitting(false);
         return;
       }
-
+      
       // Verify requested quantities against current stock
       const overQty: string[] = [];
-
+      
       for (const d of detailed) {
         const fresh = await productsService.getStorefront(
           d.product.id
         );
-
-        if (fresh && d.quantity > fresh.stock) {
+      
+        if (!fresh) {
+          continue;
+        }
+      
+        const currentStock = d.variant
+          ? fresh.variants?.find(
+              (v) => v.id === d.variant?.id
+            )?.stock ?? 0
+          : fresh.stock;
+      
+        if (d.quantity > currentStock) {
           overQty.push(
-            `${d.product.name} (only ${fresh.stock} left, requested ${d.quantity})`
+            d.variant
+              ? `${d.product.name} — ${d.variant.name} (only ${currentStock} left, requested ${d.quantity})`
+              : `${d.product.name} (only ${currentStock} left, requested ${d.quantity})`
           );
         }
       }
-
+      
       if (overQty.length > 0) {
         setErrors((prev) => ({
           ...prev,
@@ -223,19 +250,19 @@ function Checkout() {
             ", "
           )}.`,
         }));
-
+      
         setSubmitting(false);
         return;
       }
-
+      
       const w = await shippingService.get(wilayaCode);
-
+      
       if (!w) {
         setErrors((prev) => ({
           ...prev,
           wilaya: "Invalid wilaya",
         }));
-
+      
         setSubmitting(false);
         return;
       }
@@ -260,10 +287,13 @@ function Checkout() {
               : undefined,
         },
 
-        items: detailed.map(({ product, quantity }) => ({
-          id: product.id,
-          quantity,
-        })),
+        items: detailed.map(
+          ({ product, quantity, variant }) => ({
+            id: product.id,
+            quantity,
+            variantId: variant?.id,
+          })
+        ),
 
         paymentMethod: "cod",
         notes: undefined,
@@ -547,15 +577,22 @@ function Checkout() {
             ) : (
               <>
                 <ul className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {detailed.map(
-                    ({ product, quantity }) => (
+                                {detailed.map(
+                  ({ product, quantity, variant }) => {
+                    const currentPrice =
+                      variant?.price ?? product.price;
+
+                    const currentImage =
+                      variant?.image ?? product.image;
+
+                    return (
                       <li
-                        key={product.id}
+                        key={`${product.id}-${variant?.id ?? "default"}`}
                         className="flex gap-3 items-center"
                       >
                         <div className="relative shrink-0">
                           <img
-                            src={product.image}
+                            src={currentImage}
                             alt={product.name}
                             className="h-14 w-14 rounded-xl object-cover border border-border"
                           />
@@ -570,23 +607,26 @@ function Checkout() {
                             {product.name}
                           </p>
 
+                          {variant && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {variant.name} · {variant.code}
+                            </p>
+                          )}
+
                           <p className="text-xs text-muted-foreground">
-                            {formatCurrency(
-                              product.price
-                            )}{" "}
-                            × {quantity}
+                            {formatCurrency(currentPrice)} × {quantity}
                           </p>
                         </div>
 
                         <p className="text-sm font-semibold">
                           {formatCurrency(
-                            product.price *
-                              quantity
+                            currentPrice * quantity
                           )}
                         </p>
                       </li>
-                    )
-                  )}
+                    );
+                  }
+                )}
                 </ul>
 
                 <div className="mt-5 pt-5 border-t border-border space-y-2 text-sm">

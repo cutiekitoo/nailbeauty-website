@@ -9,33 +9,59 @@ import {
 
 import { toast } from "sonner";
 
-import { productsService, type Product } from "./products-service";
+import {
+  productsService,
+  type Product,
+  type ProductVariant,
+} from "./products-service";
+
 import { trackAddToCart } from "./meta-pixel";
 
 export type CartItem = {
   id: string;
   quantity: number;
+  variantId?: string;
+};
+
+type DetailedCartItem = {
+  product: Product;
+  quantity: number;
+  variant?: ProductVariant;
 };
 
 type CartCtx = {
   items: CartItem[];
   count: number;
   subtotal: number;
-  detailed: Array<{
-    product: Product;
-    quantity: number;
-  }>;
-  outOfStockItems: Array<{
-    product: Product;
-    quantity: number;
-  }>;
+
+  detailed: DetailedCartItem[];
+
+  outOfStockItems: DetailedCartItem[];
+
   hasOutOfStock: boolean;
+
   isOpen: boolean;
+
   open: () => void;
   close: () => void;
-  add: (id: string, quantity?: number) => Promise<boolean>;
-  remove: (id: string) => void;
-  setQuantity: (id: string, q: number) => Promise<void>;
+
+  add: (
+    id: string,
+    quantity?: number,
+    variantId?: string
+  ) => Promise<boolean>;
+
+  remove: (
+    id: string,
+    variantId?: string
+  ) => void;
+
+  setQuantity: (
+    id: string,
+    q: number,
+    variantId?: string
+  ) => Promise<void>;
+
   clear: () => void;
 };
 
@@ -58,9 +84,15 @@ export function CartProvider({
       const raw = localStorage.getItem(STORAGE_KEY);
 
       if (raw) {
-        setItems(JSON.parse(raw));
+        const parsed = JSON.parse(raw);
+
+        if (Array.isArray(parsed)) {
+          setItems(parsed);
+        }
       }
-    } catch {}
+    } catch {
+      // Ignore invalid cart data
+    }
 
     setHydrated(true);
 
@@ -88,41 +120,262 @@ export function CartProvider({
 
   const value = useMemo<CartCtx>(() => {
     const detailed = items
-      .map((it) => {
-        const product = allProducts.find(
-          (p) => p.id === it.id
-        );
-
-        return product
-          ? {
-              product,
-              quantity: it.quantity,
-            }
-          : null;
-      })
-      .filter(
-        (
-          x
-        ): x is {
-          product: Product;
-          quantity: number;
-        } => x !== null
+    .map((item) => {
+      const product = allProducts.find(
+        (p) => p.id === item.id
       );
+  
+      if (!product) {
+        return null;
+      }
+  
+      const variant = item.variantId
+        ? product.variants?.find(
+            (v) => v.id === item.variantId
+          )
+        : undefined;
+  
+      return {
+        product,
+        quantity: item.quantity,
+        variant,
+      };
+    })
+    .filter((item) => item !== null) as DetailedCartItem[];
 
-    const outOfStockItems = detailed.filter(
-      (d) => d.product.stock <= 0
-    );
+    const outOfStockItems =
+      detailed.filter((item) => {
+        if (item.variant) {
+          return item.variant.stock <= 0;
+        }
+
+        return item.product.stock <= 0;
+      });
 
     const count = items.reduce(
-      (s, i) => s + i.quantity,
+      (sum, item) => sum + item.quantity,
       0
     );
 
     const subtotal = detailed.reduce(
-      (s, d) =>
-        s + d.product.price * d.quantity,
+      (sum, item) => {
+        const price =
+          item.variant?.price ??
+          item.product.price;
+
+        return (
+          sum +
+          price * item.quantity
+        );
+      },
       0
     );
+
+    const add = async (
+      id: string,
+      quantity = 1,
+      variantId?: string
+    ): Promise<boolean> => {
+      const safeQuantity = Math.max(
+        1,
+        Math.floor(quantity)
+      );
+
+      const product =
+        await productsService.getStorefront(id);
+
+      if (!product) {
+        toast.error("Produit introuvable");
+        return false;
+      }
+
+      let variant: ProductVariant | undefined;
+
+      if (variantId) {
+        variant =
+          product.variants?.find(
+            (v) => v.id === variantId
+          );
+
+        if (!variant) {
+          toast.error(
+            "Cette variante n'est plus disponible"
+          );
+
+          return false;
+        }
+
+        if (variant.stock <= 0) {
+          toast.error(
+            `${variant.name} est en rupture de stock`
+          );
+
+          return false;
+        }
+      } else if (
+        product.variants &&
+        product.variants.length > 0
+      ) {
+        toast.error(
+          "Veuillez sélectionner une variante"
+        );
+
+        return false;
+      }
+
+      const availableStock =
+        variant?.stock ?? product.stock;
+
+      const current =
+        items.find(
+          (item) =>
+            item.id === id &&
+            item.variantId === variantId
+        )?.quantity ?? 0;
+
+      if (
+        current + safeQuantity >
+        availableStock
+      ) {
+        const remaining =
+          availableStock - current;
+
+        toast.error(
+          remaining > 0
+            ? `Seulement ${remaining} disponible${
+                remaining > 1 ? "s" : ""
+              }`
+            : "Stock insuffisant"
+        );
+
+        return false;
+      }
+
+      setItems((prev) => {
+        const found = prev.find(
+          (item) =>
+            item.id === id &&
+            item.variantId === variantId
+        );
+
+        if (found) {
+          return prev.map((item) =>
+            item.id === id &&
+            item.variantId === variantId
+              ? {
+                  ...item,
+                  quantity:
+                    item.quantity +
+                    safeQuantity,
+                }
+              : item
+          );
+        }
+
+        return [
+          ...prev,
+          {
+            id,
+            quantity: safeQuantity,
+            ...(variantId
+              ? { variantId }
+              : {}),
+          },
+        ];
+      });
+
+      trackAddToCart(
+        product,
+        safeQuantity
+      );
+
+      return true;
+    };
+
+    const remove = (
+      id: string,
+      variantId?: string
+    ) => {
+      setItems((prev) =>
+        prev.filter(
+          (item) =>
+            !(
+              item.id === id &&
+              item.variantId === variantId
+            )
+        )
+      );
+    };
+
+    const setQuantity = async (
+      id: string,
+      q: number,
+      variantId?: string
+    ) => {
+      if (q > 0) {
+        const product =
+          await productsService.getStorefront(id);
+
+        if (!product) {
+          return;
+        }
+
+        let availableStock =
+          product.stock;
+
+        if (variantId) {
+          const variant =
+            product.variants?.find(
+              (v) => v.id === variantId
+            );
+
+          if (!variant) {
+            return;
+          }
+
+          availableStock =
+            variant.stock;
+        }
+
+        if (q > availableStock) {
+          toast.error(
+            `Seulement ${availableStock} disponible${
+              availableStock > 1
+                ? "s"
+                : ""
+            }`
+          );
+
+          q = availableStock;
+        }
+      }
+
+      setItems((prev) => {
+        if (q <= 0) {
+          return prev.filter(
+            (item) =>
+              !(
+                item.id === id &&
+                item.variantId === variantId
+              )
+          );
+        }
+
+        return prev.map((item) =>
+          item.id === id &&
+          item.variantId === variantId
+            ? {
+                ...item,
+                quantity: q,
+              }
+            : item
+        );
+      });
+    };
+
+    const clear = () => {
+      setItems([]);
+    };
 
     return {
       items,
@@ -133,121 +386,14 @@ export function CartProvider({
       hasOutOfStock:
         outOfStockItems.length > 0,
       isOpen,
-
       open: () => setIsOpen(true),
-
       close: () => setIsOpen(false),
-
-      add: async (
-        id: string,
-        quantity = 1
-      ): Promise<boolean> => {
-        const safeQuantity = Math.max(
-          1,
-          Math.floor(quantity)
-        );
-      
-        const product =
-          await productsService.getStorefront(id);
-      
-        if (!product || product.stock <= 0) {
-          toast.error(
-            `${product?.name ?? "This product"} is out of stock`
-          );
-          return false;
-        }
-      
-        const current =
-          items.find((p) => p.id === id)?.quantity ?? 0;
-      
-        if (current + safeQuantity > product.stock) {
-          toast.error(
-            `Only ${product.stock - current} more available for ${product.name}`
-          );
-          return false;
-        }
-      
-        setItems((prev) => {
-          const found = prev.find((p) => p.id === id);
-      
-          if (found) {
-            return prev.map((p) =>
-              p.id === id
-                ? {
-                    ...p,
-                    quantity: p.quantity + safeQuantity,
-                  }
-                : p
-            );
-          }
-      
-          return [
-            ...prev,
-            {
-              id,
-              quantity: safeQuantity,
-            },
-          ];
-        });
-      
-        // Meta Pixel — AddToCart
-        trackAddToCart(product, safeQuantity);
-      
-        return true;
-      },
-
-      remove: (id) =>
-        setItems((prev) =>
-          prev.filter(
-            (p) => p.id !== id
-          )
-        ),
-
-      setQuantity: async (
-        id: string,
-        q: number
-      ) => {
-        if (q > 0) {
-          const product =
-            await productsService.getStorefront(
-              id
-            );
-
-          if (
-            product &&
-            q > product.stock
-          ) {
-            toast.error(
-              `Only ${product.stock} in stock for ${product.name}`
-            );
-
-            q = product.stock;
-          }
-        }
-
-        setItems((prev) =>
-          q <= 0
-            ? prev.filter(
-                (p) => p.id !== id
-              )
-            : prev.map((p) =>
-                p.id === id
-                  ? {
-                      ...p,
-                      quantity: q,
-                    }
-                  : p
-              )
-        );
-      },
-
-      clear: () => setItems([]),
+      add,
+      remove,
+      setQuantity,
+      clear,
     };
-  }, [
-    items,
-    isOpen,
-    allProducts,
-  ]);
+  }, [items, isOpen, allProducts]);
 
   return (
     <Ctx.Provider value={value}>
