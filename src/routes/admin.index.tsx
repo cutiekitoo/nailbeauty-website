@@ -78,11 +78,15 @@ function AdminDashboard() {
 
   const stats = useMemo(() => {
     const delivered = orders.filter(o => (o.status ?? "pending") === "delivered");
+  
     return {
       total: orders.length,
       pending: orders.filter(o => (o.status ?? "pending") === "pending").length,
       delivered: delivered.length,
-      revenue: delivered.reduce((acc, o) => acc + o.total, 0),
+      revenue: delivered.reduce(
+        (acc, o) => acc + o.items.reduce((sum, item) => sum + item.lineTotal, 0),
+        0
+      ),
       activeWilayas: activeWilayasCount,
     };
   }, [orders, activeWilayasCount]);
