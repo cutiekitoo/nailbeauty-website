@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-
 import { Link } from "@tanstack/react-router";
-
 import {
   X,
   Minus,
@@ -10,9 +8,7 @@ import {
   ShoppingBag,
   AlertTriangle,
 } from "lucide-react";
-
 import { useCart } from "@/lib/cart-context";
-
 import { formatCurrency } from "@/lib/currency";
 
 export function CartDrawer() {
@@ -56,22 +52,20 @@ export function CartDrawer() {
 
       <aside
         role="dialog"
-        aria-label="Shopping cart"
+        aria-label="Panier"
         className={`fixed right-0 top-0 z-50 h-full w-full sm:max-w-md bg-background border-l border-border shadow-2xl transition-transform duration-500 ease-out ${
-          isOpen
-            ? "translate-x-0"
-            : "translate-x-full"
+          isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-6 h-20 border-b border-border">
             <h2 className="font-display text-2xl">
-              Your Bag
+              Votre panier
             </h2>
 
             <button
               onClick={close}
-              aria-label="Close cart"
+              aria-label="Fermer le panier"
               className="grid place-items-center h-10 w-10 rounded-full bg-secondary hover:bg-accent transition"
             >
               <X className="h-4 w-4" />
@@ -90,22 +84,18 @@ export function CartDrawer() {
 
                 <div>
                   <p className="font-display text-xl">
-                    Your bag is empty
+                    Votre panier est vide
                   </p>
 
                   <p className="text-sm text-muted-foreground mt-1">
-                    Add some pretty things to get started.
+                    Ajoutez vos produits préférés pour commencer.
                   </p>
                 </div>
               </div>
             ) : (
               <ul className="space-y-4">
                 {detailed.map(
-                  ({
-                    product,
-                    quantity,
-                    variant,
-                  }) => {
+                  ({ product, quantity, variant }) => {
                     const currentPrice =
                       variant?.price ?? product.price;
 
@@ -113,11 +103,9 @@ export function CartDrawer() {
                       variant?.stock ?? product.stock;
 
                     const currentImage =
-                      variant?.image ??
-                      product.image;
+                      variant?.image ?? product.image;
 
-                    const isOOS =
-                      currentStock <= 0;
+                    const isOOS = currentStock <= 0;
 
                     return (
                       <li
@@ -132,9 +120,7 @@ export function CartDrawer() {
                           src={currentImage}
                           alt={product.name}
                           className={`h-20 w-20 rounded-xl object-cover ${
-                            isOOS
-                              ? "opacity-60 grayscale"
-                              : ""
+                            isOOS ? "opacity-60 grayscale" : ""
                           }`}
                         />
 
@@ -147,20 +133,16 @@ export function CartDrawer() {
 
                               {variant && (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  {variant.name} ·{" "}
-                                  {variant.code}
+                                  {variant.name} · {variant.code}
                                 </p>
                               )}
                             </div>
 
                             <button
                               onClick={() =>
-                                remove(
-                                  product.id,
-                                  variant?.id
-                                )
+                                remove(product.id, variant?.id)
                               }
-                              aria-label={`Remove ${product.name}`}
+                              aria-label={`Retirer ${product.name} du panier`}
                               className="text-muted-foreground hover:text-destructive transition"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -168,15 +150,13 @@ export function CartDrawer() {
                           </div>
 
                           <p className="text-sm text-muted-foreground mt-1">
-                            {formatCurrency(
-                              currentPrice
-                            )}
+                            {formatCurrency(currentPrice)}
                           </p>
 
                           {isOOS && (
                             <p className="text-xs font-semibold text-destructive mt-1 inline-flex items-center gap-1">
                               <AlertTriangle className="h-3 w-3" />
-                              Out of stock — remove to continue
+                              Rupture de stock — retirez ce produit pour continuer
                             </p>
                           )}
 
@@ -190,7 +170,7 @@ export function CartDrawer() {
                                     variant?.id
                                   )
                                 }
-                                aria-label="Decrease quantity"
+                                aria-label="Diminuer la quantité"
                                 className="h-8 w-8 grid place-items-center hover:bg-secondary rounded-l-full transition"
                               >
                                 <Minus className="h-3 w-3" />
@@ -208,7 +188,7 @@ export function CartDrawer() {
                                     variant?.id
                                   )
                                 }
-                                aria-label="Increase quantity"
+                                aria-label="Augmenter la quantité"
                                 disabled={isOOS}
                                 className="h-8 w-8 grid place-items-center hover:bg-secondary rounded-r-full transition disabled:opacity-40 disabled:cursor-not-allowed"
                               >
@@ -217,9 +197,7 @@ export function CartDrawer() {
                             </div>
 
                             <span className="text-sm font-semibold">
-                              {formatCurrency(
-                                currentPrice * quantity
-                              )}
+                              {formatCurrency(currentPrice * quantity)}
                             </span>
                           </div>
                         </div>
@@ -238,22 +216,22 @@ export function CartDrawer() {
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
 
                   <p>
-                    {outOfStockItems.length} item
+                    {outOfStockItems.length}{" "}
                     {outOfStockItems.length > 1
-                      ? "s"
-                      : ""}{" "}
-                    out of stock. Remove{" "}
+                      ? "produits"
+                      : "produit"}{" "}
+                    en rupture de stock. Retirez{" "}
                     {outOfStockItems.length > 1
-                      ? "them"
-                      : "it"}{" "}
-                    to proceed to checkout.
+                      ? "ces produits"
+                      : "ce produit"}{" "}
+                    pour passer à la commande.
                   </p>
                 </div>
               )}
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  Subtotal
+                  Sous-total
                 </span>
 
                 <span className="font-display text-2xl">
@@ -262,7 +240,7 @@ export function CartDrawer() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Shipping & taxes calculated at checkout.
+                Les frais de livraison seront calculés à l’étape suivante.
               </p>
 
               {hasOutOfStock ? (
@@ -271,7 +249,7 @@ export function CartDrawer() {
                   disabled
                   className="block w-full h-12 text-center rounded-full bg-primary text-primary-foreground font-semibold opacity-50 cursor-not-allowed"
                 >
-                  Proceed to Checkout
+                  Passer à la commande
                 </button>
               ) : (
                 <Link
@@ -279,7 +257,7 @@ export function CartDrawer() {
                   onClick={close}
                   className="block w-full h-12 leading-[3rem] text-center rounded-full bg-primary text-primary-foreground font-semibold shadow-[var(--shadow-soft)] hover:brightness-110 active:scale-[0.98] transition"
                 >
-                  Proceed to Checkout
+                  Passer à la commande
                 </Link>
               )}
             </div>
