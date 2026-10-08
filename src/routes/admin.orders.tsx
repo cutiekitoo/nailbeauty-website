@@ -65,23 +65,28 @@ const openWhatsApp = (
     internationalPhone = `213${digits}`;
   }
 
-  const message = `Bonjour ${customerName} \\u{1F338}
+  const flower = String.fromCodePoint(0x1F338);
+  const nails = String.fromCodePoint(0x1F485);
+  const sparkle = String.fromCodePoint(0x2728);
+  const heart = String.fromCodePoint(0x1F90D);
+
+  const message = `Bonjour ${customerName} ${flower}
 
 Nous vous contactons concernant votre commande ${orderNumber} chez Nail Beauty.
 
-Nous souhaitons confirmer avec vous les informations de votre commande. \\u{1F485}\\u{2728}
+Nous souhaitons confirmer avec vous les informations de votre commande. ${nails}${sparkle}
 
 بالعربية:
 
-مرحبًا ${customerName} \\u{1F338}
+مرحبًا ${customerName} ${flower}
 
 نتواصل معكم بخصوص طلبكم رقم ${orderNumber} من Nail Beauty.
 
-نود التأكد معكم من معلومات طلبكم قبل إرساله. \\u{1F485}\\u{2728}
+نود التأكد معكم من معلومات طلبكم قبل إرساله. ${nails}${sparkle}
 
-شكرًا لثقتكم بنا \\u{1F90D}
+شكرًا لثقتكم بنا ${heart}
 
-Merci pour votre confiance \\u{1F90D}`;
+Merci pour votre confiance ${heart}`;
 
   const url = `https://wa.me/${internationalPhone}?text=${encodeURIComponent(message)}`;
 
