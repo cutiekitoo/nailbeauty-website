@@ -48,7 +48,7 @@ const fmtDate = (iso: string) =>
     minute: "2-digit",
   });
 
-
+  
 const openWhatsApp = (
   phone: string,
   customerName: string,
@@ -66,30 +66,23 @@ const openWhatsApp = (
     internationalPhone = `213${digits}`;
   }
 
-  const flower = String.fromCodePoint(0x1F338);
-  const nails = String.fromCodePoint(0x1F485);
-  const sparkle = String.fromCodePoint(0x2728);
-  const heart = String.fromCodePoint(0x1F90D);
-
-  const message = `Bonjour ${customerName} ${flower}
+  const message = `Bonjour ${customerName} 
 
 Nous vous contactons concernant votre commande ${orderNumber} chez Nail Beauty.
 
-Nous souhaitons confirmer avec vous les informations de votre commande. ${nails}${sparkle}
+Nous souhaitons confirmer avec vous les informations de votre commande. 
 
 بالعربية:
 
-مرحبًا ${customerName} ${flower}
+مرحبًا ${customerName} 
 
 نتواصل معكم بخصوص طلبكم رقم ${orderNumber} من Nail Beauty.
 
-نود التأكد معكم من معلومات طلبكم قبل إرساله. ${nails}${sparkle}
+نود التأكد معكم من معلومات طلبكم قبل إرساله. 
 
-شكرًا لثقتكم بنا ${heart}
+شكرًا لثقتكم بنا 
 
-Merci pour votre confiance ${heart}`;
-
-  console.log("Message WhatsApp :", message);
+Merci pour votre confiance `;
 
   const url = `https://wa.me/${internationalPhone}?text=${encodeURIComponent(message)}`;
 
