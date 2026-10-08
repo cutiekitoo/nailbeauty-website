@@ -486,13 +486,14 @@ $$;
 
 grant execute on function public.restore_stock(uuid) to authenticated;
 
--- 1.8 Order status update function with stock restoration
 create or replace function public.update_order_status(
   p_order_id uuid,
   new_status public.order_status
 )
 returns jsonb
-language plpgsql security definer set search_path = public
+language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_current_status public.order_status;
@@ -501,66 +502,120 @@ declare
   v_current_stock integer;
 begin
   -- Get current status and stock_restored flag
-  select status, stock_restored into v_current_status, v_stock_restored
+  select status, stock_restored
+  into v_current_status, v_stock_restored
   from public.orders
   where id = p_order_id;
-  
+
   if v_current_status is null then
     raise exception 'Order not found';
   end if;
-  
+
   -- Validate transition
   if not public.validate_order_status_transition(v_current_status, new_status) then
-    raise exception 'Invalid status transition from % to %', v_current_status, new_status;
+    raise exception 'Invalid status transition from % to %',
+      v_current_status,
+      new_status;
   end if;
-  
+
   -- If reactivating from cancelled, check and decrement stock first
   if v_current_status = 'cancelled' and new_status != 'cancelled' then
+
     if v_stock_restored then
+
       -- Check and decrement stock for each item in deterministic product_id order
-      for v_item in 
-        select product_id, quantity 
-        from public.order_items 
-        where order_id = p_order_id and product_id is not null
+      for v_item in
+        select product_id, quantity
+        from public.order_items
+        where order_id = p_order_id
+          and product_id is not null
         order by product_id
       loop
+
         -- Lock and check stock
-        select stock into v_current_stock
+        select stock
+        into v_current_stock
         from public.products
         where id = v_item.product_id
         for update;
-        
+
         if v_current_stock is null then
-          raise exception 'Product not found with id: %', v_item.product_id;
+          raise exception 'Product not found with id: %',
+            v_item.product_id;
         end if;
-        
+
         if v_current_stock < v_item.quantity then
-          raise exception 'Insufficient stock to reactivate order. Product ID: %, Available: %, Required: %', v_item.product_id, v_current_stock, v_item.quantity;
+          raise exception
+            'Insufficient stock to reactivate order. Product ID: %, Available: %, Required: %',
+            v_item.product_id,
+            v_current_stock,
+            v_item.quantity;
         end if;
-        
+
         -- Decrement stock
         update public.products
-        set stock = stock - v_item.quantity, updated_at = now()
+        set
+          stock = stock - v_item.quantity,
+          updated_at = now()
         where id = v_item.product_id;
+
       end loop;
-      
+
       -- Reset stock_restored flag
       update public.orders
       set stock_restored = false
       where id = p_order_id;
+
     end if;
+
+    -- Reset tracking dates when reactivating a cancelled order
+    update public.orders
+    set
+      shipped_at = null,
+      delivered_at = null
+    where id = p_order_id;
+
   end if;
-  
-  -- Update status first
+
+  -- Update status + tracking timestamps
   update public.orders
-  set status = new_status
+  set
+    status = new_status,
+
+    shipped_at =
+      case
+        when new_status = 'shipped'
+             and v_current_status != 'shipped'
+        then now()
+
+        when new_status = 'cancelled'
+        then shipped_at
+
+        else shipped_at
+      end,
+
+    delivered_at =
+      case
+        when new_status = 'delivered'
+             and v_current_status != 'delivered'
+        then now()
+
+        when new_status = 'cancelled'
+        then delivered_at
+
+        else delivered_at
+      end
+
   where id = p_order_id;
-  
+
   -- If cancelling, restore stock after status update
-  if new_status = 'cancelled' and v_current_status != 'cancelled' then
+  if new_status = 'cancelled'
+     and v_current_status != 'cancelled' then
+
     perform public.restore_stock(p_order_id);
+
   end if;
-  
+
   return jsonb_build_object(
     'success', true,
     'order_id', p_order_id,
@@ -570,7 +625,8 @@ begin
 end;
 $$;
 
-grant execute on function public.update_order_status(uuid, public.order_status) to authenticated;
+grant execute on function public.update_order_status(uuid, public.order_status)
+to authenticated;
 
 -- 1.9 Product revenue view (delivered orders only, excludes shipping)
 create or replace view public.product_revenue as
