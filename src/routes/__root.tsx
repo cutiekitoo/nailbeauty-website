@@ -130,11 +130,11 @@ export const Route =
             "An e-commerce platform for premium nail beauty products, featuring a responsive homepage with real-time search and cart functionality.",
         },
 
-        {
-          property: "og:image",
-          content:
-            "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/65ac9bc5-cdf4-4d56-bbd2-71021f6276eb/id-preview-da6f1f63--7c4e2e47-aeec-4687-9490-76a8c764e720.lovable.app-1781218122477.png",
-        },
+{
+  property: "og:image",
+  content:
+    "https://nailbeauty-website-8rii.vercel.app/photo_2026-09-26_18-58-38.jpg?v=2",
+},
 
         {
           name: "twitter:image",
