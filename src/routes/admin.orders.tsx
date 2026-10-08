@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   LogOut, Search, Sparkles, ArrowLeft, Eye, Inbox,
   Package, Clock, CheckCircle2, Truck, XCircle, ImageOff,
-  AlertTriangle,Bell, 
+  AlertTriangle, Bell, MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,46 @@ const fmtDate = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+const openWhatsApp = (
+  phone: string,
+  customerName: string,
+  orderNumber: string,
+) => {
+  const digits = phone.replace(/\D/g, "");
+
+  let internationalPhone = digits;
+
+  if (digits.startsWith("0")) {
+    internationalPhone = `213${digits.slice(1)}`;
+  } else if (digits.startsWith("213")) {
+    internationalPhone = digits;
+  } else {
+    internationalPhone = `213${digits}`;
+  }
+
+  const message = `Bonjour ${customerName} 🌸
+
+Nous vous contactons concernant votre commande ${orderNumber} chez Nail Beauty.
+
+Nous souhaitons confirmer avec vous les informations de votre commande. 💅✨
+
+بالعربية:
+
+مرحبًا ${customerName} 🌸
+
+نتواصل معكم بخصوص طلبكم رقم ${orderNumber} من Nail Beauty.
+
+نود التأكد معكم من معلومات طلبكم قبل إرساله. 💅✨
+
+شكرًا لثقتكم بنا 🤍
+
+Merci pour votre confiance 🤍`;
+
+  const url = `https://wa.me/${internationalPhone}?text=${encodeURIComponent(message)}`;
+
+  window.open(url, "_blank", "noopener,noreferrer");
+};
 
 const statusStyles: Record<OrderStatus, string> = {
   pending: "bg-amber-100 text-amber-800 hover:bg-amber-100",
@@ -585,15 +625,33 @@ function AdminOrders() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="rounded-lg"
-                            onClick={() => setViewing(o)}
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </Button>
+<div className="flex items-center justify-end gap-2">
+  <Button
+    size="sm"
+    variant="outline"
+    className="rounded-lg"
+    onClick={() =>
+      openWhatsApp(
+        o.customer.phone,
+        o.customer.fullName,
+        o.orderNumber,
+      )
+    }
+  >
+    <MessageCircle className="w-4 h-4 text-emerald-600" />
+    <span className="hidden sm:inline">WhatsApp</span>
+  </Button>
+
+  <Button
+    size="sm"
+    variant="outline"
+    className="rounded-lg"
+    onClick={() => setViewing(o)}
+  >
+    <Eye className="w-4 h-4" />
+    View
+  </Button>
+</div>
                         </TableCell>
                       </TableRow>
                     );
