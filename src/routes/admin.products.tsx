@@ -13,6 +13,8 @@ import {
   X,
   Palette,
   Power,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,6 +156,7 @@ function AdminProducts() {
 
   const [items, setItems] = useState<AdminProduct[]>([]);
   const [query, setQuery] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<"all" | "visible" | "hidden">("all");
 
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [creating, setCreating] = useState(false);
@@ -221,12 +224,42 @@ function AdminProducts() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    if (!q) {
-      return items;
-    }
+    return items.filter((p) => {
+      const matchesQuery = !q || p.name.toLowerCase().includes(q);
+      const isVisible = p.isVisible ?? true;
+      const matchesVisibility =
+        visibilityFilter === "all" ||
+        (visibilityFilter === "visible" && isVisible) ||
+        (visibilityFilter === "hidden" && !isVisible);
 
-    return items.filter((p) => p.name.toLowerCase().includes(q));
-  }, [items, query]);
+      return matchesQuery && matchesVisibility;
+    });
+  }, [items, query, visibilityFilter]);
+
+  const toggleVisibility = async (product: AdminProduct) => {
+    const nextVisibility = !(product.isVisible ?? true);
+
+    try {
+      const updated = await productsService.update(product.id, {
+        isVisible: nextVisibility,
+      });
+
+      if (!updated) {
+        throw new Error("Could not update product visibility");
+      }
+
+      setItems((current) =>
+        current.map((item) =>
+          item.id === product.id ? updated : item,
+        ),
+      );
+      toast.success(nextVisibility ? "Product is now visible" : "Product hidden from the store");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update visibility",
+      );
+    }
+  };
 
   const resetVariantRefs = () => {
     variantFileInputRefs.current = {};
@@ -599,15 +632,36 @@ function AdminProducts() {
           </Button>
         </div>
 
-        <div className="mt-6 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:items-center">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
 
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by product name…"
-            className="pl-9 rounded-xl bg-card"
-          />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by product name…"
+              className="pl-9 rounded-xl bg-card"
+            />
+          </div>
+
+          <div className="flex gap-2 flex-wrap" aria-label="Filter products by visibility">
+            {([
+              ["all", "All products"],
+              ["visible", "Visible"],
+              ["hidden", "Hidden"],
+            ] as const).map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={visibilityFilter === value ? "default" : "outline"}
+                onClick={() => setVisibilityFilter(value)}
+                className="rounded-xl"
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-6 rounded-2xl border border-border/60 bg-card shadow-[var(--shadow-soft)] overflow-hidden">
@@ -677,19 +731,40 @@ function AdminProducts() {
                     <TableCell>★ {p.rating.toFixed(1)}</TableCell>
 
                     <TableCell>
-                      {p.stock > 0 ? (
-                        <Badge className="bg-accent/60 text-foreground hover:bg-accent/60">
-                          In Stock
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive">
-                          Out of Stock
-                        </Badge>
-                      )}
+                      <div className="flex flex-col items-start gap-1.5">
+                        {(p.isVisible ?? true) ? (
+                          <Badge className="bg-accent/60 text-foreground hover:bg-accent/60">
+                            Visible
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Hidden</Badge>
+                        )}
+                        {p.stock > 0 ? (
+                          <Badge className="bg-accent/60 text-foreground hover:bg-accent/60">
+                            In Stock
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">Out of Stock</Badge>
+                        )}
+                      </div>
                     </TableCell>
 
                     <TableCell className="text-right">
                       <div className="inline-flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => toggleVisibility(p)}
+                          aria-label={(p.isVisible ?? true) ? "Hide product" : "Show product"}
+                          title={(p.isVisible ?? true) ? "Hide product from store" : "Show product in store"}
+                        >
+                          {(p.isVisible ?? true) ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4 text-primary" />
+                          )}
+                        </Button>
+
                         <Button
                           size="icon"
                           variant="ghost"

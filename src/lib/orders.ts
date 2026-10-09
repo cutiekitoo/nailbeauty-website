@@ -23,6 +23,7 @@ export type Order = {
   id: string;
   orderNumber: string;
   createdAt: string;
+  contactStartedAt?: string | null;
   customer: {
     fullName: string;
     phone: string;
@@ -56,6 +57,7 @@ function fromDbOrder(row: any, items: any[]): Order {
     id: row.id,
     orderNumber: row.order_number,
     createdAt: row.created_at,
+    contactStartedAt: row.contact_started_at ?? null,
     customer: {
       fullName: row.customer_name,
       phone: row.customer_phone,
@@ -102,7 +104,7 @@ export const ordersService = {
           .eq("order_id", order.id);
 
         return fromDbOrder(order, items || []);
-      })
+      }),
     );
 
     return ordersWithItems;
@@ -125,13 +127,18 @@ export const ordersService = {
     return fromDbOrder(order, items || []);
   },
 
-  async updateStatus(
-    orderId: string,
-    status: OrderStatus
-  ): Promise<void> {
+  async updateStatus(orderId: string, status: OrderStatus): Promise<void> {
     const { error } = await supabase.rpc("update_order_status", {
       p_order_id: orderId,
       new_status: status,
+    });
+
+    if (error) throw error;
+  },
+
+  async markContactStarted(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc("mark_order_contact_started", {
+      p_order_id: orderId,
     });
 
     if (error) throw error;
@@ -156,7 +163,7 @@ export const ordersService = {
           schema: "public",
           table: "orders",
         },
-        () => cb()
+        () => cb(),
       )
       .subscribe();
 

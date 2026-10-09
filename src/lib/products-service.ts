@@ -9,6 +9,7 @@ export type AdminProduct = {
   shortDescription: string;
   description: string;
   images: string[];
+  isVisible: boolean;
   createdAt: string;
 };
 
@@ -53,6 +54,7 @@ function fromDbProduct(row: any): AdminProduct {
     shortDescription: row.description,
     description: row.description,
     images: row.images || [],
+    isVisible: row.is_visible ?? true,
     createdAt: row.created_at,
   };
 }
@@ -172,7 +174,7 @@ export const productsService = {
   },
 
   async listStorefront(): Promise<Product[]> {
-    const products = await this.list();
+    const products = (await this.list()).filter((product) => product.isVisible);
 
     const variantsByProduct =
       await getVariantsForProducts(
@@ -192,7 +194,7 @@ export const productsService = {
   ): Promise<Product | null> {
     const product = await this.get(id);
 
-    if (!product) {
+    if (!product || !product.isVisible) {
       return null;
     }
 
@@ -202,7 +204,7 @@ export const productsService = {
   },
 
   async create(
-    input: Omit<AdminProduct, "id" | "createdAt">
+    input: Omit<AdminProduct, "id" | "createdAt" | "isVisible">
   ): Promise<AdminProduct> {
     const { data, error } = await supabase
       .from("products")
@@ -256,6 +258,10 @@ export const productsService = {
 
     if (patch.rating !== undefined) {
       updateData.rating = patch.rating;
+    }
+
+    if (patch.isVisible !== undefined) {
+      updateData.is_visible = patch.isVisible;
     }
 
     const { data, error } = await supabase

@@ -113,7 +113,7 @@ function AdminOrders() {
 ;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
-    useState<"all" | OrderStatus>("all");
+    useState<"all" | "new" | OrderStatus>("all");
   const [viewing, setViewing] = useState<Order | null>(null);
 
   // Shipment tracking
@@ -223,6 +223,9 @@ function AdminOrders() {
 
     return {
       total: orders.length,
+      newPending: orders.filter(
+        (o) => (o.status ?? "pending") === "pending" && !o.contactStartedAt,
+      ).length,
       pending: by("pending"),
       confirmed: by("confirmed"),
       delivered: by("delivered"),
@@ -235,7 +238,17 @@ function AdminOrders() {
     return orders.filter((o) => {
       const status = o.status ?? "pending";
 
-      if (statusFilter !== "all" && status !== statusFilter) {
+      const isNewPending = status === "pending" && !o.contactStartedAt;
+
+      if (statusFilter === "new" && !isNewPending) {
+        return false;
+      }
+
+      if (
+        statusFilter !== "all" &&
+        statusFilter !== "new" &&
+        status !== statusFilter
+      ) {
         return false;
       }
 
@@ -250,6 +263,29 @@ function AdminOrders() {
       );
     });
   }, [orders, query, statusFilter]);
+
+  const markAsContacted = async (order: Order) => {
+    if (order.status !== "pending" || order.contactStartedAt) {
+      return;
+    }
+
+    try {
+      await ordersService.markContactStarted(order.id);
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id
+            ? { ...item, contactStartedAt: new Date().toISOString() }
+            : item,
+        ),
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? `WhatsApp s’est ouvert, mais la prise en charge n’a pas pu être enregistrée : ${err.message}`
+          : "WhatsApp s’est ouvert, mais la prise en charge n’a pas pu être enregistrée.",
+      );
+    }
+  };
 
   const setStatus = async (orderId: string, status: OrderStatus) => {
     try {
@@ -440,7 +476,14 @@ function AdminOrders() {
         </div>
 
         {/* Stats */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <StatCard
+            icon={Bell}
+            label="New Orders"
+            value={stats.newPending}
+            tone="bg-rose-100 text-rose-700"
+          />
+
           <StatCard
             icon={Package}
             label="Total Orders"
@@ -495,6 +538,7 @@ function AdminOrders() {
 
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="new">New orders</SelectItem>
 
               {ORDER_STATUSES.map((s) => (
                 <SelectItem
@@ -545,6 +589,8 @@ function AdminOrders() {
                 ) : (
                   filtered.map((o) => {
                     const status = o.status ?? "pending";
+                    const isNewPending =
+                      status === "pending" && !o.contactStartedAt;
                     const shipment = shipmentByOrderNumber.get(
                       o.orderNumber,
                     );
@@ -559,7 +605,16 @@ function AdminOrders() {
                     return (
                       <TableRow key={o.orderNumber}>
                         <TableCell className="font-medium">
-                          {o.orderNumber}
+                          <span className="inline-flex items-center gap-2">
+                            {isNewPending && (
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500 ring-2 ring-rose-100"
+                                title="Nouvelle commande — cliquez sur WhatsApp pour la marquer comme prise en charge"
+                                aria-label="Nouvelle commande"
+                              />
+                            )}
+                            {o.orderNumber}
+                          </span>
                         </TableCell>
 
                         <TableCell>
@@ -631,13 +686,15 @@ function AdminOrders() {
     size="sm"
     variant="outline"
     className="rounded-lg"
-    onClick={() =>
+    onClick={() => {
+      // Open WhatsApp synchronously so the browser does not block the new tab.
       openWhatsApp(
         o.customer.phone,
         o.customer.fullName,
         o.orderNumber,
-      )
-    }
+      );
+      void markAsContacted(o);
+    }}
   >
     <MessageCircle className="w-4 h-4 text-emerald-600" />
     <span className="hidden sm:inline">WhatsApp</span>
