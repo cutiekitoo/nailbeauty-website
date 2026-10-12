@@ -30,11 +30,10 @@ import {
 } from "@/components/ui/table";
 
 import { adminLogout, useAdminSession } from "@/lib/admin-auth";
-import {
-  ordersService,
-  type Order,
-  type OrderStatus,
+
+import { type Order,type OrderStatus,
 } from "@/lib/orders";
+import { ordersService } from "@/lib/api/orders-service";
 import { shippingService } from "@/lib/shipping-service";
 import { formatCurrency } from "@/lib/currency";
 
@@ -71,24 +70,34 @@ const formatDate = (iso: string) =>
     year: "numeric",
   });
 
-const statusStyles: Record<OrderStatus, string> = {
-  pending: "bg-amber-100 text-amber-800 hover:bg-amber-100",
-  confirmed: "bg-blue-100 text-blue-800 hover:bg-blue-100",
-  shipped: "bg-purple-100 text-purple-800 hover:bg-purple-100",
-  delivered: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
-  cancelled: "bg-rose-100 text-rose-800 hover:bg-rose-100",
-};
+  const statusStyles: Record<OrderStatus, string> = {
+    pending: "bg-amber-100 text-amber-800 hover:bg-amber-100",
+    confirmed: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+    shipped: "bg-purple-100 text-purple-800 hover:bg-purple-100",
+    delivered: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
+    cancelled: "bg-rose-100 text-rose-800 hover:bg-rose-100",
+    returned: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+  };
 
-function StatusBadge({ status }: { status: OrderStatus }) {
-  return (
-    <Badge
-      className={`capitalize rounded-full px-2.5 font-normal shadow-none ${statusStyles[status]}`}
-      variant="secondary"
-    >
-      {status}
-    </Badge>
-  );
-}
+  function StatusBadge({ status }: { status: OrderStatus }) {
+    const labels: Record<OrderStatus, string> = {
+      pending: "En attente",
+      confirmed: "Confirmée",
+      shipped: "Expédiée",
+      delivered: "Livrée",
+      cancelled: "Annulée",
+      returned: "Retour",
+    };
+  
+    return (
+      <Badge
+        className={`rounded-full px-2.5 font-normal shadow-none ${statusStyles[status]}`}
+        variant="secondary"
+      >
+        {labels[status]}
+      </Badge>
+    );
+  }
 
 function AdminDashboard() {
   const navigate = useNavigate();

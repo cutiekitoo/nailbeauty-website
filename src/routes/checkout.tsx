@@ -13,7 +13,7 @@ import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import {DELIVERY_METHODS,type DeliveryMethod,} from "@/lib/shipping-config";
 import { shippingService } from "@/lib/shipping-service";
-import { createOrder } from "@/lib/orders";
+import { createOrder } from "@/lib/api/orders-service";
 import { productsService } from "@/lib/products-service";
 import { formatCurrency } from "@/lib/currency";
 import {trackInitiateCheckout,trackPurchase,} from "@/lib/meta-pixel";

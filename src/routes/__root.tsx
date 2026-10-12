@@ -48,10 +48,13 @@ function ErrorComponent({
   error,
   reset,
 }: {
-  error: Error;
+  error: unknown;
   reset: () => void;
 }) {
-  console.error(error);
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : String(error);
 
   const router = useRouter();
 

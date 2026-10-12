@@ -1,32 +1,77 @@
+
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  LogOut, Search, Sparkles, ArrowLeft, Eye, Inbox,
-  Package, Clock, CheckCircle2, Truck, XCircle, ImageOff,
-  AlertTriangle, Bell, MessageCircle,
+  LogOut,
+  Search,
+  Sparkles,
+  ArrowLeft,
+  Eye,
+  Inbox,
+  Package,
+  Clock,
+  CheckCircle2,
+  Truck,
+  XCircle,
+  ImageOff,
+  AlertTriangle,
+  Bell,
+  MessageCircle,
+  Plus,
+  Trash2,
+  Pencil,
+  Save,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
+
 import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
 } from "@/components/ui/table";
+
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
+
 import { adminLogout, useAdminSession } from "@/lib/admin-auth";
+
 import {
-  ordersService, ORDER_STATUSES, type Order, type OrderStatus,
+  ORDER_STATUSES,
+  type Order,
+  type OrderStatus,
 } from "@/lib/orders";
+
+import { ordersService } from "@/lib/api/orders-service";
+import { productsService } from "@/lib/products-service";
+import type { Product } from "@/lib/products-service";
+
 import { formatCurrency } from "@/lib/currency";
+
 import {
   getShipmentTrackingInfo,
   formatRemainingTime,
   type ShipmentTrackingOrder,
 } from "@/lib/shipment-tracking-service";
+
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/orders")({
@@ -95,12 +140,22 @@ const statusStyles: Record<OrderStatus, string> = {
   shipped: "bg-purple-100 text-purple-800 hover:bg-purple-100",
   delivered: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
   cancelled: "bg-rose-100 text-rose-800 hover:bg-rose-100",
+  returned: "bg-orange-100 text-orange-800 hover:bg-orange-100",
 };
 
 function StatusBadge({ status }: { status: OrderStatus }) {
+  const labels: Record<OrderStatus, string> = {
+    pending: "En attente",
+    confirmed: "Confirmée",
+    shipped: "Expédiée",
+    delivered: "Livrée",
+    cancelled: "Annulée",
+    returned: "Retour",
+  };
+
   return (
-    <Badge className={`capitalize rounded-full px-2.5 ${statusStyles[status]}`}>
-      {status}
+    <Badge className={`rounded-full px-2.5 ${statusStyles[status]}`}>
+      {labels[status]}
     </Badge>
   );
 }
@@ -721,11 +776,18 @@ function AdminOrders() {
         )}
       </main>
 
-      <OrderDetailsDialog
-        order={viewing}
-        onClose={() => setViewing(null)}
-        onStatusChange={setStatus}
-      />
+<OrderDetailsDialog
+  order={viewing}
+  onClose={() => setViewing(null)}
+  onStatusChange={setStatus}
+  onSaved={async (orderId) => {
+    const refreshedOrders = await ordersService.list();
+    setOrders(refreshedOrders);
+    setViewing(
+      refreshedOrders.find((item) => item.id === orderId) ?? null
+    );
+  }}
+/>
     </div>
   );
 }
@@ -783,6 +845,7 @@ function OrderDetailsDialog({
   order,
   onClose,
   onStatusChange,
+  onSaved,
 }: {
   order: Order | null;
   onClose: () => void;
@@ -790,14 +853,264 @@ function OrderDetailsDialog({
     orderId: string,
     status: OrderStatus,
   ) => void;
+  onSaved: (orderId: string) => Promise<void>;
 }) {
+  type DraftItem = {
+    key: string;
+    orderItemId?: string;
+    productId: string;
+    variantId?: string;
+    name: string;
+    image: string;
+    unitPrice: number;
+    quantity: number;
+  };
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<DraftItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [addProductId, setAddProductId] = useState("");
+  const [addVariantId, setAddVariantId] = useState("");
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const open = !!order;
   const current = order?.status ?? "pending";
+
+  const canEditOrder = [
+    "pending",
+    "confirmed",
+    "shipped",
+  ].includes(current);
+
+  const draftSubtotal = draft.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0,
+  );
+
+  const selectedAddProduct = products.find(
+    (product) => product.id === addProductId,
+  );
+
+  const productHasVariants =
+    (selectedAddProduct?.variants?.length ?? 0) > 0;
+
+  const availableVariants =
+    selectedAddProduct?.variants?.filter(
+      (variant) => variant.isActive && variant.stock > 0,
+    ) ?? [];
+
+  const selectedAddVariant = availableVariants.find(
+    (variant) => variant.id === addVariantId,
+  );
+
+  const availableProducts = products.filter((product) => {
+    if (product.variants?.length) {
+      return product.variants.some(
+        (variant) => variant.isActive && variant.stock > 0,
+      );
+    }
+
+    return product.stock > 0;
+  });
+
+  const canAddSelectedProduct =
+    !!selectedAddProduct &&
+    (productHasVariants
+      ? !!selectedAddVariant
+      : selectedAddProduct.stock > 0);
+
+  const startEditing = async () => {
+    if (!order) return;
+
+    // Avoid submitting incomplete order-item references to Supabase.
+    if (order.items.some((item) => !item.productId)) {
+      toast.error(
+        "A product ID is missing from this order. The order cannot be edited safely.",
+      );
+      return;
+    }
+
+    setLoadingProducts(true);
+
+    try {
+      const productList = await productsService.listStorefront();
+
+      setProducts(productList);
+
+      setDraft(
+        order.items.map((item) => ({
+          key: item.id,
+          orderItemId: item.id,
+          productId: item.productId!,
+          variantId: item.variantId,
+          name: item.name,
+          image: item.image,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+        })),
+      );
+
+      setAddProductId("");
+      setAddVariantId("");
+      setIsEditing(true);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not load products.",
+      );
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const addSelectedProduct = () => {
+    if (!selectedAddProduct || !canAddSelectedProduct) {
+      toast.error("Select an available product and variant.");
+      return;
+    }
+
+    const product = selectedAddProduct;
+    const variant = selectedAddVariant;
+
+    const productId = product.id;
+    const variantId = variant?.id;
+    const name = variant
+      ? `${product.name} — ${variant.name}`
+      : product.name;
+    const image = variant?.image || product.image;
+    const unitPrice = variant?.price ?? product.price;
+
+    setDraft((existingDraft) => {
+      // If this product/variant is already present, increase its quantity.
+      const existingIndex = existingDraft.findIndex(
+        (item) =>
+          item.productId === productId &&
+          (item.variantId ?? "") === (variantId ?? ""),
+      );
+
+      if (existingIndex !== -1) {
+        return existingDraft.map((item, index) =>
+          index === existingIndex
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        );
+      }
+
+      return [
+        ...existingDraft,
+        {
+          key: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          productId,
+          variantId,
+          name,
+          image,
+          unitPrice,
+          quantity: 1,
+        },
+      ];
+    });
+
+    setAddProductId("");
+    setAddVariantId("");
+  };
+
+  const updateQuantity = (key: string, value: string) => {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) return;
+
+    setDraft((items) =>
+      items.map((item) =>
+        item.key === key
+          ? {
+              ...item,
+              quantity: Math.max(1, Math.floor(parsed || 1)),
+            }
+          : item,
+      ),
+    );
+  };
+
+  const removeItem = (key: string) => {
+    setDraft((items) => items.filter((item) => item.key !== key));
+  };
+
+  const saveChanges = async () => {
+    if (!order) return;
+
+    if (draft.length === 0) {
+      toast.error("An order must contain at least one product.");
+      return;
+    }
+
+    if (
+      draft.some(
+        (item) =>
+          !item.productId ||
+          !Number.isInteger(item.quantity) ||
+          item.quantity < 1,
+      )
+    ) {
+      toast.error("Check the products and quantities.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const result = await ordersService.editOrder(
+        order.id,
+        draft.map((item) => ({
+          orderItemId: item.orderItemId,
+          productId: item.productId,
+          variantId: item.variantId,
+          quantity: item.quantity,
+        })),
+      );
+
+      if (!result.success) {
+        throw new Error("Supabase could not update this order.");
+      }
+
+      setIsEditing(false);
+      toast.success("Order updated successfully.");
+
+      try {
+        await onSaved(order.id);
+      } catch {
+        toast.error(
+          "The order was saved, but the page could not refresh. Reload the page to see the latest data.",
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update the order.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setDraft([]);
+    setAddProductId("");
+    setAddVariantId("");
+  };
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setIsEditing(false);
+          onClose();
+        }
+      }}
     >
       <DialogContent className="max-w-3xl rounded-2xl max-h-[92vh] overflow-y-auto">
         {order && (
@@ -819,7 +1132,10 @@ function OrderDetailsDialog({
                   k="Full Name"
                   v={order.customer.fullName}
                 />
-                <Row k="Phone" v={order.customer.phone} />
+                <Row
+                  k="Phone"
+                  v={order.customer.phone}
+                />
               </InfoCard>
 
               <InfoCard title="Delivery">
@@ -862,11 +1178,8 @@ function OrderDetailsDialog({
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                 <Select
                   value={current}
-                  onValueChange={(v) =>
-                    onStatusChange(
-                      order.id,
-                      v as OrderStatus,
-                    )
+                  onValueChange={(value) =>
+                    onStatusChange(order.id, value as OrderStatus)
                   }
                 >
                   <SelectTrigger className="w-full sm:w-52 rounded-xl">
@@ -874,13 +1187,13 @@ function OrderDetailsDialog({
                   </SelectTrigger>
 
                   <SelectContent>
-                    {ORDER_STATUSES.map((s) => (
+                    {ORDER_STATUSES.map((status) => (
                       <SelectItem
-                        key={s}
-                        value={s}
+                        key={status}
+                        value={status}
                         className="capitalize"
                       >
-                        {s}
+                        {status}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -892,10 +1205,7 @@ function OrderDetailsDialog({
                     label="Confirm"
                     disabled={current === "confirmed"}
                     onClick={() =>
-                      onStatusChange(
-                        order.id,
-                        "confirmed",
-                      )
+                      onStatusChange(order.id, "confirmed")
                     }
                   />
 
@@ -904,10 +1214,7 @@ function OrderDetailsDialog({
                     label="Ship"
                     disabled={current === "shipped"}
                     onClick={() =>
-                      onStatusChange(
-                        order.id,
-                        "shipped",
-                      )
+                      onStatusChange(order.id, "shipped")
                     }
                   />
 
@@ -916,10 +1223,7 @@ function OrderDetailsDialog({
                     label="Deliver"
                     disabled={current === "delivered"}
                     onClick={() =>
-                      onStatusChange(
-                        order.id,
-                        "delivered",
-                      )
+                      onStatusChange(order.id, "delivered")
                     }
                   />
 
@@ -929,75 +1233,285 @@ function OrderDetailsDialog({
                     tone="destructive"
                     disabled={current === "cancelled"}
                     onClick={() =>
-                      onStatusChange(
-                        order.id,
-                        "cancelled",
-                      )
+                      onStatusChange(order.id, "cancelled")
                     }
                   />
                 </div>
               </div>
             </div>
 
-            {/* Items */}
+            {/* Ordered products */}
             <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border/60 font-medium text-sm">
-                Products Ordered
+              <div className="px-4 py-3 border-b border-border/60 flex flex-wrap items-center justify-between gap-3">
+                <p className="font-medium text-sm">
+                  Products Ordered
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {isEditing ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={cancelEditing}
+                        disabled={saving}
+                      >
+                        Cancel
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={saveChanges}
+                        disabled={saving || draft.length === 0}
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {saving ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </>
+                  ) : (
+                    canEditOrder && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={startEditing}
+                        disabled={loadingProducts}
+                      >
+                        <Pencil className="w-4 h-4 mr-2" />
+                        {loadingProducts ? "Loading..." : "Edit Order"}
+                      </Button>
+                    )
+                  )}
+                </div>
               </div>
+
+              {/* Add product controls */}
+              {isEditing && (
+                <div className="p-4 border-b border-border/60 bg-muted/20 space-y-3">
+                  <p className="text-sm font-medium">
+                    Add a product
+                  </p>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="sm:col-span-1">
+                      <Select
+                        value={addProductId}
+                        onValueChange={(value) => {
+                          setAddProductId(value);
+
+                          const product = products.find(
+                            (item) => item.id === value,
+                          );
+
+                          const firstVariant =
+                            product?.variants?.find(
+                              (variant) =>
+                                variant.isActive &&
+                                variant.stock > 0,
+                            );
+
+                          setAddVariantId(firstVariant?.id ?? "");
+                        }}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Select product" />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {availableProducts.map((product) => (
+                            <SelectItem
+                              key={product.id}
+                              value={product.id}
+                            >
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="sm:col-span-1">
+                      <Select
+                        value={addVariantId}
+                        onValueChange={setAddVariantId}
+                        disabled={
+                          !selectedAddProduct ||
+                          !productHasVariants ||
+                          availableVariants.length === 0
+                        }
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue
+                            placeholder={
+                              productHasVariants
+                                ? "Select variant"
+                                : "No variant needed"
+                            }
+                          />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {availableVariants.map((variant) => (
+                            <SelectItem
+                              key={variant.id}
+                              value={variant.id}
+                            >
+                              {variant.name}
+                              {variant.code
+                                ? ` (${variant.code})`
+                                : ""}
+                              {" — "}
+                              {formatCurrency(variant.price)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={addSelectedProduct}
+                      disabled={!canAddSelectedProduct}
+                      className="rounded-xl"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Product
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    The final price, stock adjustment and delivery fee
+                    are validated when you save.
+                  </p>
+                </div>
+              )}
 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">
-                      Image
-                    </TableHead>
+                    <TableHead className="w-16">Image</TableHead>
                     <TableHead>Product</TableHead>
-                    <TableHead className="text-center">
-                      Qty
-                    </TableHead>
-                    <TableHead className="text-right">
-                      Unit
-                    </TableHead>
-                    <TableHead className="text-right">
-                      Total
-                    </TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead className="text-right">Unit</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    {isEditing && (
+                      <TableHead className="text-right">
+                        Actions
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {order.items.map((it) => (
-                    <TableRow key={it.id}>
-                      <TableCell>
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-                          {it.image ? (
-                            <img
-                              src={it.image}
-                              alt={it.name}
-                              className="w-full h-full object-cover"
+                  {isEditing ? (
+                    draft.length > 0 ? (
+                      draft.map((item) => (
+                        <TableRow key={item.key}>
+                          <TableCell>
+                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                              {item.image ? (
+                                <img
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <ImageOff className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="font-medium">
+                            {item.name}
+                          </TableCell>
+
+                          <TableCell className="text-center">
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={item.quantity}
+                              onChange={(event) =>
+                                updateQuantity(
+                                  item.key,
+                                  event.target.value,
+                                )
+                              }
+                              className="w-20 mx-auto text-center rounded-lg"
                             />
-                          ) : (
-                            <ImageOff className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      </TableCell>
+                          </TableCell>
 
-                      <TableCell className="font-medium">
-                        {it.name}
-                      </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.unitPrice)}
+                          </TableCell>
 
-                      <TableCell className="text-center">
-                        {it.quantity}
-                      </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(
+                              item.unitPrice * item.quantity,
+                            )}
+                          </TableCell>
 
-                      <TableCell className="text-right">
-                        {formatCurrency(it.unitPrice)}
-                      </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeItem(item.key)}
+                              aria-label={`Remove ${item.name}`}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="py-8 text-center text-muted-foreground"
+                        >
+                          No products. Add at least one product before saving.
+                        </TableCell>
+                      </TableRow>
+                    )
+                  ) : (
+                    order.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <ImageOff className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        </TableCell>
 
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(it.lineTotal)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        <TableCell className="font-medium">
+                          {item.name}
+                        </TableCell>
+
+                        <TableCell className="text-center">
+                          {item.quantity}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          {formatCurrency(item.unitPrice)}
+                        </TableCell>
+
+                        <TableCell className="text-right font-semibold">
+                          {formatCurrency(item.lineTotal)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -1006,7 +1520,9 @@ function OrderDetailsDialog({
             <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-2 text-sm">
               <Row
                 k="Subtotal"
-                v={formatCurrency(order.subtotal)}
+                v={formatCurrency(
+                  isEditing ? draftSubtotal : order.subtotal,
+                )}
               />
 
               <Row
@@ -1020,7 +1536,10 @@ function OrderDetailsDialog({
                 </span>
 
                 <span className="font-display text-2xl text-primary">
-                  {formatCurrency(order.total)}
+                  {formatCurrency(
+                    (isEditing ? draftSubtotal : order.subtotal) +
+                      order.shippingFee,
+                  )}
                 </span>
               </div>
             </div>

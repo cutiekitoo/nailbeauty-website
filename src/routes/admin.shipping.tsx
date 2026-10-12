@@ -21,7 +21,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { adminLogout, useAdminSession } from "@/lib/admin-auth";
 import { shippingService } from "@/lib/shipping-service";
-import { type WilayaConfig } from "@/lib/shipping-config";
+import { type WilayaConfig } from "@/lib/shipping-service";
 import { formatCurrency } from "@/lib/currency";
 import { toast } from "sonner";
 

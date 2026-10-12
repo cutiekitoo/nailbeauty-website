@@ -20,7 +20,8 @@ import {
 import { CartProvider } from "@/lib/cart-context";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
-import { getLastOrder, type Order } from "@/lib/orders";
+import { getLastOrder } from "@/lib/api/orders-service";
+import type { Order } from "@/lib/orders";
 import { formatCurrency } from "@/lib/currency";
 
 export const Route = createFileRoute("/order-success")({
