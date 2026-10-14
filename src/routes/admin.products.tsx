@@ -702,7 +702,8 @@ function AdminProducts() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10"><span className="sr-only">Reorder</span></TableHead>\n                <TableHead className="w-24">Images</TableHead>
+                <TableHead className="w-10"><span className="sr-only">Reorder</span></TableHead>
+                <TableHead className="w-24">Images</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Stock</TableHead>
@@ -724,7 +725,44 @@ function AdminProducts() {
                 </TableRow>
               ) : (
                 filtered.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow
+                    key={p.id}
+                    draggable={canReorder}
+                    onDragStart={(event) => {
+                      if (!canReorder) {
+                        event.preventDefault();
+                        return;
+                      }
+                      setDraggedProductId(p.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", p.id);
+                    }}
+                    onDragOver={(event) => {
+                      if (canReorder && draggedProductId && draggedProductId !== p.id) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                      }
+                    }}
+                    onDrop={(event) => {
+                      if (!canReorder) return;
+                      event.preventDefault();
+                      void handleProductDrop(p.id);
+                    }}
+                    onDragEnd={() => setDraggedProductId(null)}
+                    className={draggedProductId === p.id ? "opacity-50" : undefined}
+                  >
+                    <TableCell className="w-10">
+                      <button
+                        type="button"
+                        draggable={false}
+                        disabled={!canReorder}
+                        aria-label={`Reorder ${p.name}`}
+                        title={canReorder ? "Drag this row to reorder products" : "Clear search and filters to reorder"}
+                        className="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="w-4 h-4" />
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <div className="flex -space-x-2">
                         {p.images.slice(0, 3).map((src, i) => (
