@@ -6,7 +6,7 @@ export type AnalyticsSummary = {
   pendingOrders: number;
   confirmedOrders: number;
   shippedOrders: number;
-  cancelledOrders: number;
+  returnedOrders: number;  
   productRevenue: number;
   averageOrderValue: number;
 };
@@ -136,9 +136,8 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
     shippedOrders: orders.filter(
       (order) => order.status === "shipped",
     ).length,
-
-    cancelledOrders: orders.filter(
-      (order) => order.status === "cancelled",
+    returnedOrders: orders.filter(
+      (order) => order.status === "returned",
     ).length,
 
     productRevenue,

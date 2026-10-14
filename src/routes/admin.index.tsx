@@ -15,7 +15,7 @@ import {
   BarChart3,
   Trophy,
   Wallet,
-  XCircle,
+  XCircle,RotateCcw
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -395,162 +395,158 @@ function AdminDashboard() {
   {/* Analytics summary cards */}
 
   {analytics && (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <AnalyticsCard
-        icon={Wallet}
-        label="Average Order Value"
-        value={formatCurrency(analytics.averageOrderValue)}
-        description="Delivered orders"
-        tone="bg-primary/5 text-primary border-primary/10"
-      />
+  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <AnalyticsCard
+      icon={Wallet}
+      label="Average Order Value"
+      value={formatCurrency(analytics.averageOrderValue)}
+      description="Delivered orders"
+      tone="bg-primary/5 text-primary border-primary/10"
+    />
 
-      <AnalyticsCard
-        icon={CheckCircle2}
-        label="Delivered"
-        value={analytics.deliveredOrders}
-        description={`${analytics.totalOrders} total orders`}
-        tone="bg-emerald-50 text-emerald-600 border-emerald-100"
-      />
+    <AnalyticsCard
+      icon={CheckCircle2}
+      label="Delivered"
+      value={analytics.deliveredOrders}
+      description={`${analytics.totalOrders} total orders`}
+      tone="bg-emerald-50 text-emerald-600 border-emerald-100"
+    />
 
-      <AnalyticsCard
-        icon={Truck}
-        label="Shipped"
-        value={analytics.shippedOrders}
-        description="Orders in delivery"
-        tone="bg-purple-50 text-purple-600 border-purple-100"
-      />
+    <AnalyticsCard
+      icon={Truck}
+      label="Shipped"
+      value={analytics.shippedOrders}
+      description="Orders in delivery"
+      tone="bg-purple-50 text-purple-600 border-purple-100"
+    />
 
-      <AnalyticsCard
-        icon={XCircle}
-        label="Cancelled"
-        value={analytics.cancelledOrders}
-        description="Cancelled orders"
-        tone="bg-rose-50 text-rose-600 border-rose-100"
-      />
+    <AnalyticsCard
+      icon={RotateCcw}
+      label="Returned"
+      value={analytics.returnedOrders}
+      description="Returned orders"
+      tone="bg-orange-50 text-orange-600 border-orange-100"
+    />
+  </div>
+)}
+
+{/* Revenue + Order Status */}
+<div className="grid gap-6 lg:grid-cols-3">
+  {/* Revenue chart */}
+  <div className="lg:col-span-2 rounded-2xl border border-border/60 bg-card p-5 shadow-[var(--shadow-soft)]">
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h3 className="font-semibold">
+          Revenue — Last 30 Days
+        </h3>
+
+        <p className="text-xs text-muted-foreground mt-1">
+          Product revenue from delivered orders
+        </p>
+      </div>
+
+      <TrendingUp className="w-5 h-5 text-primary" />
+    </div>
+
+    {revenueByDay.length === 0 ? (
+      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+        No revenue data yet
+      </div>
+    ) : (
+      <div className="h-48 flex items-end gap-1 sm:gap-2 overflow-hidden">
+        {(() => {
+          const maxRevenue = Math.max(
+            ...revenueByDay.map((day) => day.revenue),
+            1,
+          );
+
+          return revenueByDay.map((day) => {
+            const height =
+              day.revenue > 0
+                ? Math.max(
+                    (day.revenue / maxRevenue) * 100,
+                    4,
+                  )
+                : 2;
+
+            return (
+              <div
+                key={day.date}
+                className="flex-1 h-full flex items-end group min-w-[4px]"
+                title={`${day.date}: ${formatCurrency(day.revenue)} — ${day.orders} order(s)`}
+              >
+                <div
+                  className="w-full rounded-t-md bg-primary/70 hover:bg-primary transition-colors"
+                  style={{
+                    height: `${height}%`,
+                  }}
+                />
+              </div>
+            );
+          });
+        })()}
+      </div>
+    )}
+
+    <div className="flex justify-between mt-3 text-[11px] text-muted-foreground">
+      <span>
+        {revenueByDay[0]?.date ?? "—"}
+      </span>
+
+      <span>
+        {revenueByDay[
+          revenueByDay.length - 1
+        ]?.date ?? "—"}
+      </span>
+    </div>
+  </div>
+
+  {/* Order Status */}
+  {analytics && (
+    <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[var(--shadow-soft)]">
+      <h3 className="font-semibold mb-5">
+        Order Status
+      </h3>
+
+      <div className="space-y-4">
+        <AnalyticsStatusRow
+          label="Pending"
+          value={analytics.pendingOrders}
+          total={analytics.totalOrders}
+          tone="bg-amber-400"
+        />
+
+        <AnalyticsStatusRow
+          label="Confirmed"
+          value={analytics.confirmedOrders}
+          total={analytics.totalOrders}
+          tone="bg-blue-400"
+        />
+
+        <AnalyticsStatusRow
+          label="Shipped"
+          value={analytics.shippedOrders}
+          total={analytics.totalOrders}
+          tone="bg-purple-400"
+        />
+
+        <AnalyticsStatusRow
+          label="Delivered"
+          value={analytics.deliveredOrders}
+          total={analytics.totalOrders}
+          tone="bg-emerald-400"
+        />
+
+        <AnalyticsStatusRow
+          label="Returned"
+          value={analytics.returnedOrders}
+          total={analytics.totalOrders}
+          tone="bg-orange-400"
+        />
+      </div>
     </div>
   )}
-
-          {/* Revenue + Order Status */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Revenue chart */}
-            <div className="lg:col-span-2 rounded-2xl border border-border/60 bg-card p-5 shadow-[var(--shadow-soft)]">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="font-semibold">
-                    Revenue — Last 30 Days
-                  </h3>
-
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Product revenue from delivered orders
-                  </p>
-                </div>
-
-                <TrendingUp className="w-5 h-5 text-primary" />
-              </div>
-
-              {revenueByDay.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  No revenue data yet
-                </div>
-              ) : (
-                <div className="h-48 flex items-end gap-1 sm:gap-2 overflow-hidden">
-                  {(() => {
-                    const maxRevenue = Math.max(
-                      ...revenueByDay.map(
-                        (day) => day.revenue,
-                      ),
-                      1,
-                    );
-
-                    return revenueByDay.map((day) => {
-                      const height =
-                        day.revenue > 0
-                          ? Math.max(
-                              (day.revenue / maxRevenue) *
-                                100,
-                              4,
-                            )
-                          : 2;
-
-                      return (
-                        <div
-                          key={day.date}
-                          className="flex-1 h-full flex items-end group min-w-[4px]"
-                          title={`${day.date}: ${formatCurrency(day.revenue)} — ${day.orders} order(s)`}
-                        >
-                          <div
-                            className="w-full rounded-t-md bg-primary/70 hover:bg-primary transition-colors"
-                            style={{
-                              height: `${height}%`,
-                            }}
-                          />
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
-
-              <div className="flex justify-between mt-3 text-[11px] text-muted-foreground">
-                <span>
-                  {revenueByDay[0]?.date ?? "—"}
-                </span>
-
-                <span>
-                  {revenueByDay[
-                    revenueByDay.length - 1
-                  ]?.date ?? "—"}
-                </span>
-              </div>
-            </div>
-
-            {/* Order Status */}
-            {analytics && (
-              <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[var(--shadow-soft)]">
-                <h3 className="font-semibold mb-5">
-                  Order Status
-                </h3>
-
-                <div className="space-y-4">
-                  <AnalyticsStatusRow
-                    label="Pending"
-                    value={analytics.pendingOrders}
-                    total={analytics.totalOrders}
-                    tone="bg-amber-400"
-                  />
-
-                  <AnalyticsStatusRow
-                    label="Confirmed"
-                    value={analytics.confirmedOrders}
-                    total={analytics.totalOrders}
-                    tone="bg-blue-400"
-                  />
-
-                  <AnalyticsStatusRow
-                    label="Shipped"
-                    value={analytics.shippedOrders}
-                    total={analytics.totalOrders}
-                    tone="bg-purple-400"
-                  />
-
-                  <AnalyticsStatusRow
-                    label="Delivered"
-                    value={analytics.deliveredOrders}
-                    total={analytics.totalOrders}
-                    tone="bg-emerald-400"
-                  />
-
-                  <AnalyticsStatusRow
-                    label="Cancelled"
-                    value={analytics.cancelledOrders}
-                    total={analytics.totalOrders}
-                    tone="bg-rose-400"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
+</div>
           {/* Top Products + Top Wilayas */}
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Top Products */}
