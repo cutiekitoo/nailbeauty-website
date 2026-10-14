@@ -11,6 +11,7 @@ export type AdminProduct = {
   images: string[];
   isVisible: boolean;
   createdAt: string;
+  displayOrder: number;
 };
 
 export type ProductVariant = {
@@ -56,6 +57,7 @@ function fromDbProduct(row: any): AdminProduct {
     images: row.images || [],
     isVisible: row.is_visible ?? true,
     createdAt: row.created_at,
+    displayOrder: Number(row.display_order ?? 0),
   };
 }
 
@@ -158,7 +160,11 @@ export const productsService = {
 
     if (error) throw error;
 
-    return (data || []).map(fromDbProduct);
+    return (data || []).map(fromDbProduct).sort((a, b) =>
+      a.displayOrder - b.displayOrder ||
+      b.createdAt.localeCompare(a.createdAt) ||
+      a.id.localeCompare(b.id)
+    );
   },
 
   async get(id: string): Promise<AdminProduct | null> {
@@ -206,10 +212,22 @@ export const productsService = {
   async create(
     input: Omit<AdminProduct, "id" | "createdAt" | "isVisible">
   ): Promise<AdminProduct> {
+    const { data: lastProduct, error: orderError } = await supabase
+      .from("products")
+      .select("display_order")
+      .order("display_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (orderError) throw orderError;
+
+    const nextDisplayOrder = Number(lastProduct?.display_order ?? -1) + 1;
+
     const { data, error } = await supabase
       .from("products")
       .insert({
         name: input.name,
+        display_order: nextDisplayOrder,
         slug: input.name
           .toLowerCase()
           .replace(/\s+/g, "-"),
@@ -274,6 +292,20 @@ export const productsService = {
     if (error) return null;
 
     return fromDbProduct(data);
+  },
+
+  async reorder(productIds: string[]): Promise<void> {
+    const results = await Promise.all(
+      productIds.map((id, index) =>
+        supabase
+          .from("products")
+          .update({ display_order: index })
+          .eq("id", id)
+      )
+    );
+
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw failed.error;
   },
 
   async remove(id: string): Promise<void> {
