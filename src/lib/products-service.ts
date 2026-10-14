@@ -210,7 +210,7 @@ export const productsService = {
   },
 
   async create(
-    input: Omit<AdminProduct, "id" | "createdAt" | "isVisible">
+    input: Omit<AdminProduct, "id" | "createdAt" | "isVisible" | "displayOrder">
   ): Promise<AdminProduct> {
     const { data: lastProduct, error: orderError } = await supabase
       .from("products")
