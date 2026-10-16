@@ -123,8 +123,11 @@ if (!fullName.trim()) {
   e.fullName = "Le nom et le prénom sont obligatoires.";
 }
 
-if (!/^[0-9+\s-]{8,}$/.test(phone.trim())) {
-  e.phone = "Veuillez saisir un numéro de téléphone valide.";
+const normalizedPhone = phone.replace(/[\s-]/g, "");
+
+if (!/^0[567]\d{8}$/.test(normalizedPhone)) {
+  e.phone =
+    "Numéro invalide : 10 chiffres commençant par 05, 06 ou 07.";
 }
 
 if (!wilayaCode) {
@@ -259,7 +262,7 @@ try {
   const result = await createOrder({
     customer: {
       fullName: fullName.trim(),
-      phone: phone.trim(),
+      phone: phone.replace(/[\s-]/g, ""),
     },
     delivery: {
       wilayaCode,
