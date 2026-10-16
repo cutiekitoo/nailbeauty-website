@@ -167,6 +167,7 @@ function AdminProducts() {
   const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
 
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
 
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const [variantsLoading, setVariantsLoading] = useState(false);
@@ -360,6 +361,41 @@ function AdminProducts() {
       ...f,
       images: f.images.filter((_, i) => i !== idx),
     }));
+    setDraggedImageIndex((current) => {
+      if (current === null) return null;
+      if (current === idx) return null;
+      return current > idx ? current - 1 : current;
+    });
+  };
+
+  const reorderImage = (sourceIndex: number, targetIndex: number) => {
+    if (
+      sourceIndex === targetIndex ||
+      sourceIndex < 0 ||
+      targetIndex < 0 ||
+      sourceIndex >= form.images.length ||
+      targetIndex >= form.images.length
+    ) {
+      setDraggedImageIndex(null);
+      return;
+    }
+
+    setForm((current) => {
+      if (
+        sourceIndex >= current.images.length ||
+        targetIndex >= current.images.length
+      ) {
+        return current;
+      }
+
+      const images = [...current.images];
+      const [movedImage] = images.splice(sourceIndex, 1);
+      if (movedImage === undefined) return current;
+      images.splice(targetIndex, 0, movedImage);
+
+      return { ...current, images };
+    });
+    setDraggedImageIndex(null);
   };
 
   const addVariant = () => {
@@ -1003,17 +1039,48 @@ function AdminProducts() {
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                     {form.images.map((src, i) => (
                       <div
-                        key={i}
-                        className="relative group aspect-square rounded-lg overflow-hidden bg-card border border-border/60"
+                        key={`${src}-${i}`}
+                        draggable={form.images.length > 1}
+                        onDragStart={(event) => {
+                          setDraggedImageIndex(i);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", String(i));
+                        }}
+                        onDragOver={(event) => {
+                          if (draggedImageIndex !== null && draggedImageIndex !== i) {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const dataIndex = Number(event.dataTransfer.getData("text/plain"));
+                          const sourceIndex = draggedImageIndex ?? dataIndex;
+                          if (Number.isInteger(sourceIndex)) {
+                            reorderImage(sourceIndex, i);
+                          }
+                          setDraggedImageIndex(null);
+                        }}
+                        onDragEnd={() => setDraggedImageIndex(null)}
+                        className={`relative group aspect-square rounded-lg overflow-hidden bg-card border border-border/60 transition ${draggedImageIndex === i ? "opacity-50 ring-2 ring-primary" : ""} ${form.images.length > 1 ? "cursor-grab active:cursor-grabbing" : ""}`}
+                        title={form.images.length > 1 ? "Glissez pour réorganiser" : undefined}
                       >
                         <img
                           src={src}
-                          alt={`upload-${i}`}
+                          alt={`Photo du produit ${i + 1}`}
+                          draggable={false}
                           className="w-full h-full object-cover"
                         />
 
+                        {i === 0 && (
+                          <span className="absolute top-1 left-1 rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow">
+                            Principale
+                          </span>
+                        )}
+
                         <button
                           type="button"
+                          draggable={false}
                           onClick={() => removeImage(i)}
                           aria-label="Remove image"
                           className="absolute top-1 right-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-background/90 text-foreground shadow hover:bg-destructive hover:text-destructive-foreground transition"
@@ -1023,6 +1090,9 @@ function AdminProducts() {
                       </div>
                     ))}
                   </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Glissez-déposez les photos pour modifier leur ordre. La première photo sera l’image principale affichée en boutique.
+                  </p>
                 )}
 
                 <div className="mt-3 flex justify-center">
