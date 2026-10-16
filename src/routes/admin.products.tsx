@@ -1036,7 +1036,8 @@ function AdminProducts() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  <>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                     {form.images.map((src, i) => (
                       <div
                         key={`${src}-${i}`}
@@ -1090,9 +1091,10 @@ function AdminProducts() {
                       </div>
                     ))}
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Glissez-déposez les photos pour modifier leur ordre. La première photo sera l’image principale affichée en boutique.
-                  </p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Glissez-déposez les photos pour modifier leur ordre. La première photo sera l’image principale affichée en boutique.
+                    </p>
+                  </>
                 )}
 
                 <div className="mt-3 flex justify-center">
