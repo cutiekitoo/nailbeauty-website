@@ -115,6 +115,35 @@ trackInitiateCheckout({
 
 const total = subtotal + (shippingFee ?? 0);
 
+const focusFirstInvalidField = (validationErrors: Record<string, string>) => {
+  const fieldIds: Partial<Record<string, string>> = {
+    fullName: "checkout-full-name",
+    phone: "checkout-phone",
+    wilaya: "checkout-wilaya",
+    address: "checkout-address",
+    office: "checkout-office",
+  };
+
+  const firstInvalidKey = Object.keys(validationErrors).find(
+    (key) => fieldIds[key],
+  );
+  if (!firstInvalidKey) return;
+
+  const target = document.getElementById(fieldIds[firstInvalidKey]!);
+  if (!target) return;
+
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => {
+    const focusTarget =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLButtonElement
+        ? target
+        : target.querySelector<HTMLElement>("input, textarea, button, select");
+    focusTarget?.focus({ preventScroll: true });
+  }, 300);
+};
+
 const validate = () => {
 const e: Record<string, string> = {};
 
@@ -154,6 +183,9 @@ if (hasOutOfStock) {
 }
 
 setErrors(e);
+if (Object.keys(e).length > 0) {
+  focusFirstInvalidField(e);
+}
 return Object.keys(e).length === 0;
 
 
@@ -379,6 +411,7 @@ Accueil </Link>
             error={errors.fullName}
           >
             <input
+              id="checkout-full-name"
               value={fullName}
               onChange={(e) =>
                 setFullName(e.target.value)
@@ -396,6 +429,7 @@ Accueil </Link>
               <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 
               <input
+                id="checkout-phone"
                 value={phone}
                 onChange={(e) =>
                   setPhone(e.target.value)
@@ -493,6 +527,7 @@ Accueil </Link>
               error={errors.address}
             >
               <textarea
+                id="checkout-address"
                 value={address}
                 onChange={(e) =>
                   setAddress(e.target.value)
@@ -508,6 +543,7 @@ Accueil </Link>
               error={errors.office}
             >
               <input
+                id="checkout-office"
                 value={officeLocation}
                 onChange={(e) =>
                   setOfficeLocation(e.target.value)
@@ -865,6 +901,7 @@ return ( <div
    className="relative"
  >
 <button
+id="checkout-wilaya"
 type="button"
 onClick={() => setOpen((o) => !o)}
 className={`${inputCls} flex items-center justify-between text-left`}
