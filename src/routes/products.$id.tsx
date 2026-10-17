@@ -8,7 +8,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CartProvider, useCart } from "@/lib/cart-context";
 import {
@@ -124,6 +124,7 @@ function ProductDetails({
   product: Product;
 }) {
   const { add, open } = useCart();
+  const galleryRef = useRef<HTMLDivElement | null>(null);
   const [qty, setQty] = useState(1);
   const variants = product.variants ?? [];
   const hasVariants = variants.length > 0;
@@ -175,6 +176,10 @@ function ProductDetails({
   const handleVariantChange = (variantId: string) => {
     setSelectedVariantId(variantId);
     setQty(1);
+    galleryRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   };
 
   const handleAdd = async () => {
@@ -218,7 +223,7 @@ function ProductDetails({
   return (
     <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
       {/* Galerie d'images */}
-      <div className="flex flex-col gap-4">
+      <div ref={galleryRef} className="flex flex-col gap-4 scroll-mt-24">
         <div className="relative">
           <div
             className="absolute -inset-4 bg-gradient-to-br from-blush/40 to-lavender/30 rounded-[3rem] blur-2xl"
