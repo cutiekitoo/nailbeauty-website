@@ -22,6 +22,7 @@ export function ProductCard({ product }: { product: Product }) {
           src={product.image}
           alt={product.name}
           loading="lazy"
+          decoding="async"
           className={`h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 ${
             outOfStock ? "opacity-70 grayscale" : ""
           }`}
