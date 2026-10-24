@@ -82,7 +82,10 @@ function Hero() {
           </span>
 
           <h1 className="font-display text-4xl sm:text-5xl leading-tight">
-            Équipez votre salon avec les produits d’onglerie qu’il vous faut 💗
+            Équipez votre{" "}
+            <span className="text-primary">salon</span>{" "}
+            avec les produits d’<span className="text-primary">onglerie</span>{" "}
+            qu’il vous faut 💗
           </h1>
 
           <p className="text-sm sm:text-base text-muted-foreground max-w-md leading-relaxed">
