@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Sparkles, Truck, ShieldCheck, Instagram } from "lucide-react";
+import { Search, Sparkles, Truck, ShieldCheck, Instagram, ArrowRight } from "lucide-react";
 
 import heroImg from "@/assets/index-image.jpg";
 
@@ -100,9 +100,10 @@ function Hero() {
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               onClick={scrollToProducts}
-              className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-semibold shadow-[var(--shadow-soft)] hover:brightness-110 active:scale-95 transition"
+              className="home-products-cta group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 font-semibold text-primary-foreground shadow-[var(--shadow-soft)] transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[var(--shadow-glow)] active:scale-[0.97] sm:h-11 sm:w-auto motion-reduce:transition-none"
             >
-              Voir les produits
+              <span>Voir les produits</span>
+              <ArrowRight className="home-products-cta-arrow h-4 w-4" aria-hidden="true" />
             </button>
 
             <a

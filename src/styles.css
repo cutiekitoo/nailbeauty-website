@@ -101,3 +101,40 @@
     letter-spacing: -0.02em;
   }
 }
+
+
+/* Homepage primary call-to-action: a brief, accessible attention cue. */
+@keyframes homepage-products-cta-pulse {
+  0%,
+  100% {
+    box-shadow: var(--shadow-soft);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 6px color-mix(in oklab, var(--primary) 20%, transparent),
+      var(--shadow-glow);
+  }
+}
+
+.home-products-cta {
+  animation: homepage-products-cta-pulse 1.2s ease-in-out 2;
+}
+
+.home-products-cta-arrow {
+  transition: transform 200ms ease;
+}
+
+.home-products-cta:hover .home-products-cta-arrow {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-products-cta {
+    animation: none;
+  }
+
+  .home-products-cta-arrow {
+    transition: none;
+  }
+}
