@@ -98,13 +98,24 @@ function Hero() {
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={scrollToProducts}
-              className="home-products-cta group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 font-semibold text-primary-foreground shadow-[var(--shadow-soft)] transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[var(--shadow-glow)] active:scale-[0.97] sm:h-11 sm:w-auto motion-reduce:transition-none"
-            >
-              <span>Voir les produits</span>
-              <ArrowRight className="home-products-cta-arrow h-4 w-4" aria-hidden="true" />
-            </button>
+            <div className="home-products-cta-wrap relative inline-flex w-full sm:w-auto">
+              <span className="home-products-sparkle-orbit home-products-sparkle-orbit--one" aria-hidden="true">
+                <span className="home-products-sparkle home-products-sparkle--one">✦</span>
+              </span>
+              <span className="home-products-sparkle-orbit home-products-sparkle-orbit--two" aria-hidden="true">
+                <span className="home-products-sparkle home-products-sparkle--two">✧</span>
+              </span>
+              <span className="home-products-sparkle-orbit home-products-sparkle-orbit--three" aria-hidden="true">
+                <span className="home-products-sparkle home-products-sparkle--three">✦</span>
+              </span>
+              <button
+                onClick={scrollToProducts}
+                className="home-products-cta group relative z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 font-semibold text-primary-foreground shadow-[var(--shadow-soft)] transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[var(--shadow-glow)] active:scale-[0.97] sm:h-11 sm:w-auto motion-reduce:transition-none"
+              >
+                <span>Voir les produits</span>
+                <ArrowRight className="home-products-cta-arrow h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
 
             <a
               href="https://www.instagram.com/my_queenail/"
