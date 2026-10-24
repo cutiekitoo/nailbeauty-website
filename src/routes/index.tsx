@@ -108,6 +108,12 @@ function Hero() {
               <span className="home-products-sparkle-orbit home-products-sparkle-orbit--three" aria-hidden="true">
                 <span className="home-products-sparkle home-products-sparkle--three">✦</span>
               </span>
+              <span className="home-products-sparkle-orbit home-products-sparkle-orbit--four" aria-hidden="true">
+                <span className="home-products-sparkle home-products-sparkle--four">✧</span>
+              </span>
+              <span className="home-products-sparkle-orbit home-products-sparkle-orbit--five" aria-hidden="true">
+                <span className="home-products-sparkle home-products-sparkle--five">✦</span>
+              </span>
               <button
                 onClick={scrollToProducts}
                 className="home-products-cta group relative z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 font-semibold text-primary-foreground shadow-[var(--shadow-soft)] transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[var(--shadow-glow)] active:scale-[0.97] sm:h-11 sm:w-auto motion-reduce:transition-none"
