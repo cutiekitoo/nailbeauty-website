@@ -89,7 +89,12 @@ function Hero() {
           </h1>
 
           <p className="text-sm sm:text-base text-muted-foreground max-w-md leading-relaxed">
-            Découvrez nos produits et accessoires d’onglerie pour prothésistes ongulaires et salons de beauté. Commandez en ligne et profitez de la livraison partout en Algérie 🇩🇿
+            Découvrez nos produits et accessoires d’onglerie pour prothésistes ongulaires et salons de beauté. Commandez en ligne et profitez de la livraison partout en Algérie
+            <img
+              src="https://flagcdn.com/w40/dz.png"
+              alt="Drapeau algérien"
+              className="ml-1 inline-block w-5 align-middle"
+            />
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
