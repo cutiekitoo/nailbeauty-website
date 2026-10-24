@@ -82,15 +82,11 @@ function Hero() {
           </span>
 
           <h1 className="font-display text-4xl sm:text-5xl leading-tight">
-            Des ongles{" "}
-            <span className="text-primary italic">parfaits</span>
-            <br />
-            en quelques minutes 💅
+            Équipez votre salon avec les produits d’onglerie qu’il vous faut 💗
           </h1>
 
           <p className="text-sm sm:text-base text-muted-foreground max-w-md leading-relaxed">
-            Produits professionnels pour nail artists et passionnées.
-            Qualité salon, directement chez vous.
+            Découvrez nos produits et accessoires d’onglerie pour prothésistes ongulaires et salons de beauté. Commandez en ligne et profitez de la livraison partout en Algérie 🇩🇿
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
