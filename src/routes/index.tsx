@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Sparkles, Truck, ShieldCheck } from "lucide-react";
+import { Search, Sparkles, Truck, ShieldCheck, Instagram } from "lucide-react";
 
 import heroImg from "@/assets/index-image.jpg";
 
@@ -100,6 +100,17 @@ function Hero() {
             >
               Voir les produits
             </button>
+
+            <a
+              href="https://www.instagram.com/my_queenail/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-primary/30 bg-card px-5 font-semibold text-foreground shadow-[var(--shadow-soft)] transition hover:border-primary hover:bg-secondary active:scale-95"
+              aria-label="Suivre Nail Beauty sur Instagram"
+            >
+              <Instagram className="h-4 w-4 text-primary" />
+              Instagram
+            </a>
 
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
