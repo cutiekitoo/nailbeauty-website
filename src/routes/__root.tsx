@@ -17,6 +17,24 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 
+// Recover once when a cached app bundle references a missing deployment chunk.
+const VITE_PRELOAD_RETRY_PARAM = "__vite_preload_retry";
+
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (event) => {
+    event.preventDefault();
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.has(VITE_PRELOAD_RETRY_PARAM)) {
+      return;
+    }
+
+    url.searchParams.set(VITE_PRELOAD_RETRY_PARAM, "1");
+    window.location.replace(url.toString());
+  });
+}
+
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -179,6 +197,16 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has(VITE_PRELOAD_RETRY_PARAM)) {
+      url.searchParams.delete(VITE_PRELOAD_RETRY_PARAM);
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
+
     initMetaPixel();
     trackPageView();
   }, []);
