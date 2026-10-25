@@ -77,7 +77,7 @@ export function CartProvider({
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [cartProducts, setCartProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     try {
@@ -95,18 +95,6 @@ export function CartProvider({
     }
 
     setHydrated(true);
-
-    productsService.listStorefront().then((products) => {
-      setAllProducts(products);
-    });
-
-    const unsubscribe = productsService.subscribe(() => {
-      productsService.listStorefront().then((products) => {
-        setAllProducts(products);
-      });
-    });
-
-    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -118,10 +106,68 @@ export function CartProvider({
     );
   }, [items, hydrated]);
 
+  // Keep the cart cache limited to products that are actually in the cart.
+  // The same product ID is used for multiple variants, so each product is fetched once.
+  const cartProductIdsKey = useMemo(
+    () => Array.from(new Set(items.map((item) => item.id))).sort().join("|"),
+    [items],
+  );
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const productIds = cartProductIdsKey
+      ? cartProductIdsKey.split("|")
+      : [];
+
+    setCartProducts((current) =>
+      current.filter((product) => productIds.includes(product.id))
+    );
+
+    if (productIds.length === 0) {
+      setCartProducts([]);
+      return;
+    }
+
+    let active = true;
+    let requestVersion = 0;
+
+    const loadCartProducts = async () => {
+      const currentRequest = ++requestVersion;
+
+      try {
+        const currentProducts = await productsService.getStorefrontByIds(productIds);
+
+        if (active && currentRequest === requestVersion) {
+          setCartProducts(currentProducts);
+        }
+      } catch (error) {
+        console.error("Unable to refresh products in cart", error);
+      }
+    };
+
+    // Adding an item already fetches and caches that product. Avoid issuing
+    // the same initial request again if every cart product is already cached.
+    const cachedIds = new Set(cartProducts.map((product) => product.id));
+    if (productIds.some((id) => !cachedIds.has(id))) {
+      void loadCartProducts();
+    }
+
+    const unsubscribe = productsService.subscribe(() => {
+      void loadCartProducts();
+    });
+
+    return () => {
+      active = false;
+      requestVersion += 1;
+      unsubscribe();
+    };
+  }, [hydrated, cartProductIdsKey]);
+
   const value = useMemo<CartCtx>(() => {
     const detailed = items
     .map((item) => {
-      const product = allProducts.find(
+      const product = cartProducts.find(
         (p) => p.id === item.id
       );
   
@@ -226,6 +272,20 @@ export function CartProvider({
       const availableStock =
         variant?.stock ?? product.stock;
 
+      const cacheProduct = (freshProduct: Product) => {
+        setCartProducts((prev) => {
+          const exists = prev.some((cached) => cached.id === freshProduct.id);
+
+          if (!exists) {
+            return [...prev, freshProduct];
+          }
+
+          return prev.map((cached) =>
+            cached.id === freshProduct.id ? freshProduct : cached
+          );
+        });
+      };
+
       const current =
         items.find(
           (item) =>
@@ -250,6 +310,8 @@ export function CartProvider({
 
         return false;
       }
+
+      cacheProduct(product);
 
       setItems((prev) => {
         const found = prev.find(
@@ -319,6 +381,13 @@ export function CartProvider({
         if (!product) {
           return;
         }
+
+        setCartProducts((prev) => {
+          const existing = prev.some((cached) => cached.id === product.id);
+          return existing
+            ? prev.map((cached) => cached.id === product.id ? product : cached)
+            : [...prev, product];
+        });
 
         let availableStock =
           product.stock;
@@ -393,7 +462,7 @@ export function CartProvider({
       setQuantity,
       clear,
     };
-  }, [items, isOpen, allProducts]);
+  }, [items, isOpen, cartProducts]);
 
   return (
     <Ctx.Provider value={value}>

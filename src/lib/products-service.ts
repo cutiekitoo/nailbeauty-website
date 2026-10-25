@@ -201,6 +201,34 @@ export const productsService = {
     );
   },
 
+  async getStorefrontByIds(productIds: string[]): Promise<Product[]> {
+    const ids = Array.from(new Set(productIds.filter(Boolean)));
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .in("id", ids)
+      .eq("is_visible", true);
+
+    if (error) throw error;
+
+    const visibleProducts = (data || []).map(fromDbProduct);
+    const variantsByProduct = await getVariantsForProducts(
+      visibleProducts.map((product) => product.id)
+    );
+
+    return visibleProducts.map((product) =>
+      toStorefrontProduct(
+        product,
+        variantsByProduct.get(product.id) || []
+      )
+    );
+  },
+
   async listStorefront(): Promise<Product[]> {
     const products = (await this.list()).filter((product) => product.isVisible);
 
