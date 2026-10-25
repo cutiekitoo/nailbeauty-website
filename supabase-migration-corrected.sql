@@ -250,16 +250,16 @@ create or replace function public.validate_order_status_transition(
 )
 returns boolean
 language sql immutable
-as $$
+as $
   select case
     when current_status = 'pending' and new_status in ('confirmed', 'cancelled') then true
     when current_status = 'confirmed' and new_status in ('shipped', 'cancelled') then true
-    when current_status = 'shipped' and new_status = 'delivered' then true
+    when current_status = 'shipped' and new_status in ('delivered', 'returned', 'cancelled') then true
     when current_status = 'delivered' and new_status = 'returned' then true
     when current_status = 'cancelled' and new_status = 'pending' then true
     else false
   end;
-$$;
+$;
 
 -- 1.6 Transaction-safe, variant-aware create_order RPC function
 create or replace function public.create_order(payload jsonb)
@@ -497,8 +497,8 @@ begin
     v_item_quantity := (v_item_record.item->>'quantity')::integer;
 
     if v_variant_id is not null then
-      select p.name, coalesce(nullif(pv.image, ''), p.images[1]), pv.price
-        into v_product_name, v_product_image, v_db_unit_price
+      select p.name, coalesce(nullif(pv.image, ''), p.images[1]), pv.price, pv.name, pv.code
+        into v_product_name, v_product_image, v_db_unit_price, v_variant_name, v_variant_code
       from public.products p
       join public.product_variants pv on pv.product_id = p.id and pv.id = v_variant_id
       where p.id = v_product_id;
@@ -522,8 +522,13 @@ begin
     insert into public.order_items (
       order_id, product_id, variant_id, name, image, unit_price, quantity, line_total
     ) values (
-      v_order_id, v_product_id, v_variant_id, v_product_name, v_product_image,
-      v_db_unit_price, v_item_quantity, v_line_total
+      v_order_id, v_product_id, v_variant_id,
+      case
+        when v_variant_id is not null then
+          v_product_name || ' — ' || v_variant_name || ' (' || v_variant_code || ')'
+        else v_product_name
+      end,
+      v_product_image, v_db_unit_price, v_item_quantity, v_line_total
     );
   end loop;
 
