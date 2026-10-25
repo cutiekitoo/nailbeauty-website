@@ -465,10 +465,12 @@ Accueil </Link>
       <Section
         icon={<User className="h-4 w-4" />}
         title="Informations du client"
+        arabicSubtitle="معلومات الزبون"
       >
         <div className="grid sm:grid-cols-2 gap-4">
           <Field
             label="Nom et prénom"
+            arabicDescription="أدخل اسمك ولقبك كما تريد أن يظهر في الطلب."
             error={errors.fullName}
           >
             <input
@@ -484,6 +486,7 @@ Accueil </Link>
 
           <Field
             label="Numéro de téléphone"
+            arabicDescription="أدخل رقم هاتف صحيح حتى نتمكن من التواصل معك لتأكيد الطلب."
             error={errors.phone}
           >
             <div className="relative">
@@ -507,9 +510,11 @@ Accueil </Link>
       <Section
         icon={<MapPin className="h-4 w-4" />}
         title="Informations de livraison"
+        arabicSubtitle="معلومات التوصيل"
       >
         <Field
           label="Wilaya"
+          arabicDescription="اختَر الولاية التي تريد استلام طلبك فيها."
           error={errors.wilaya}
         >
           <WilayaSelect
@@ -532,6 +537,11 @@ Accueil </Link>
                 ? "Livraison de votre commande à votre domicile."
                 : "Récupérez votre commande au bureau DHD le plus proche.";
 
+            const methodDescriptionArabic =
+              m.value === "home"
+                ? "نوصّل طلبك حتى لباب دارك."
+                : "استلم طلبك من مكتب DHD الأقرب ليك.";
+
             return (
               <button
                 type="button"
@@ -551,6 +561,13 @@ Accueil </Link>
 
                     <p className="text-xs text-muted-foreground mt-1">
                       {methodDescription}
+                    </p>
+                    <p
+                      dir="rtl"
+                      lang="ar"
+                      className="mt-1 text-right text-xs leading-relaxed text-muted-foreground"
+                    >
+                      {methodDescriptionArabic}
                     </p>
                   </div>
 
@@ -576,6 +593,15 @@ Accueil </Link>
                       )
                     : "Sélectionnez une wilaya"}
                 </p>
+                {wilayaRates === null && (
+                  <p
+                    dir="rtl"
+                    lang="ar"
+                    className="mt-1 text-right text-xs leading-relaxed text-muted-foreground"
+                  >
+                    اختَر الولاية أولاً لمعرفة سعر التوصيل.
+                  </p>
+                )}
               </button>
             );
           })}
@@ -585,6 +611,7 @@ Accueil </Link>
           {method === "home" ? (
             <Field
               label="Adresse complète"
+              arabicDescription="اكتب عنوانك بالتفصيل لتسهيل وصول الطلب إليك."
               error={errors.address}
             >
               <textarea
@@ -601,6 +628,7 @@ Accueil </Link>
           ) : (
             <Field
               label="Nom ou emplacement du bureau DHD"
+              arabicDescription="اكتب اسم أو عنوان مكتب DHD الذي تريد استلام طلبك منه."
               error={errors.office}
             >
               <input
@@ -620,6 +648,7 @@ Accueil </Link>
       <Section
         icon={<Wallet className="h-4 w-4" />}
         title="Mode de paiement"
+        arabicSubtitle="طريقة الدفع"
       >
         <label className="flex items-start gap-3 p-4 rounded-2xl border-2 border-primary bg-secondary cursor-pointer">
           <input
@@ -636,6 +665,13 @@ Accueil </Link>
 
             <p className="text-sm text-muted-foreground mt-0.5">
               Payez à la réception de votre commande.
+            </p>
+            <p
+              dir="rtl"
+              lang="ar"
+              className="mt-1 text-right text-xs leading-relaxed text-muted-foreground"
+            >
+              خلّص كي يوصلك الطلب، ما تحتاجش تخلّص مسبقاً.
             </p>
           </div>
         </label>
@@ -794,19 +830,31 @@ const inputCls ="w-full h-12 px-4 rounded-2xl bg-background border border-border
 function Section({
 icon,
 title,
+arabicSubtitle,
 children,
 }: {
 icon: React.ReactNode;
 title: string;
+arabicSubtitle?: string;
 children: React.ReactNode;
 }) {
-return ( <section className="rounded-3xl bg-card border border-border shadow-[var(--shadow-soft)] p-6 sm:p-7"> <div className="flex items-center gap-2 mb-5"> <span className="grid place-items-center h-7 w-7 rounded-full bg-accent text-accent-foreground">
+return ( <section className="rounded-3xl bg-card border border-border shadow-[var(--shadow-soft)] p-6 sm:p-7"> <div className="flex items-start gap-2 mb-5"> <span className="mt-1 grid place-items-center h-7 w-7 shrink-0 rounded-full bg-accent text-accent-foreground">
 {icon} </span>
 
-
+  <div className="min-w-0">
     <h2 className="font-display text-2xl">
       {title}
     </h2>
+    {arabicSubtitle && (
+      <p
+        dir="rtl"
+        lang="ar"
+        className="mt-1 text-right text-sm leading-relaxed text-muted-foreground"
+      >
+        {arabicSubtitle}
+      </p>
+    )}
+  </div>
   </div>
 
   {children}
@@ -818,16 +866,29 @@ return ( <section className="rounded-3xl bg-card border border-border shadow-[va
 
 function Field({
 label,
+arabicDescription,
 error,
 children,
 }: {
 label: string;
+arabicDescription?: string;
 error?: string;
 children: React.ReactNode;
 }) {
-return ( <label className="block"> <span className="block text-sm font-medium mb-1.5">
-{label} </span>
+return ( <label className="block">
+  <span className="block text-sm font-medium mb-1.5">
+    {label}
+  </span>
 
+  {arabicDescription && (
+    <span
+      dir="rtl"
+      lang="ar"
+      className="mb-2 block text-right text-xs leading-relaxed text-muted-foreground"
+    >
+      {arabicDescription}
+    </span>
+  )}
 
   {children}
 
