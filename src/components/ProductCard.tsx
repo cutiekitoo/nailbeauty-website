@@ -267,12 +267,12 @@ export function ProductCard({ product }: { product: Product }) {
                         }`}
                       >
                         <img
-                          src={variant.image || variantProduct.image}
+                          src={variant.image || variantProduct?.image || ""}
                           alt={variant.image ? `${variant.name} (${variant.code})` : ""}
                           loading="lazy"
                           className="h-16 w-16 shrink-0 rounded-xl border border-border/60 bg-white object-contain"
                         />
-                        <span className="min-w-0 flex-1 space-y-2">
+                        <span className="flex min-w-0 flex-1 flex-col gap-2">
                           <span className="flex items-start justify-between gap-2">
                             <span className="font-semibold leading-tight">
                               {variant.name}
