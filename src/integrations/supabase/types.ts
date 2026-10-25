@@ -100,7 +100,7 @@ export interface Database {
           shipping_fee: number
           total: number
           payment_method: string
-          status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+          status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
           notes: string | null
           stock_restored: boolean
           created_at: string
@@ -120,7 +120,7 @@ export interface Database {
           shipping_fee: number
           total: number
           payment_method: string
-          status?: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+          status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
           notes?: string | null
           stock_restored?: boolean
           created_at?: string
@@ -140,7 +140,7 @@ export interface Database {
           shipping_fee?: number
           total?: number
           payment_method?: string
-          status?: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+          status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
           notes?: string | null
           stock_restored?: boolean
           created_at?: string
@@ -265,14 +265,14 @@ export interface Database {
       update_order_status: {
         Args: {
           p_order_id: string
-          new_status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+          new_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
         }
         Returns: Json
       }
       validate_order_status_transition: {
         Args: {
-          current_status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-          new_status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+          current_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+          new_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
         }
         Returns: boolean
       }

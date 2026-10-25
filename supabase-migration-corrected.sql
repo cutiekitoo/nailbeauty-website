@@ -164,7 +164,7 @@ insert into public.shipping_rates (code, name, home_rate, office_rate) values
 ('57','El M''Ghair',1000,800),('58','El Meniaa',1200,900);
 
 -- 1.4 Orders + order items (guest checkout, no user_id)
-create type public.order_status as enum ('pending','confirmed','shipped','delivered','cancelled');
+create type public.order_status as enum ('pending','confirmed','shipped','delivered','cancelled','returned');
 create type public.delivery_method as enum ('home','office');
 
 create table public.orders (
@@ -255,8 +255,8 @@ as $$
     when current_status = 'pending' and new_status in ('confirmed', 'cancelled') then true
     when current_status = 'confirmed' and new_status in ('shipped', 'cancelled') then true
     when current_status = 'shipped' and new_status = 'delivered' then true
-    when current_status = 'delivered' then false
-    when current_status = 'cancelled' then false
+    when current_status = 'delivered' and new_status = 'returned' then true
+    when current_status = 'cancelled' and new_status = 'pending' then true
     else false
   end;
 $$;
@@ -550,19 +550,28 @@ set search_path = public
 as $$
 declare
   v_stock_restored boolean;
+  v_order_status public.order_status;
   v_item record;
 begin
   if auth.uid() is null or not public.has_role(auth.uid(), 'admin') then
     raise exception 'Not authorized to restore order stock';
   end if;
 
-  select stock_restored into v_stock_restored
-  from public.orders where id = p_order_id
+  select status, stock_restored
+    into v_order_status, v_stock_restored
+  from public.orders
+  where id = p_order_id
   for update;
 
   if not found then
     raise exception 'Order not found: %', p_order_id;
   end if;
+
+  -- This routine may only return inventory after a cancellation or customer return.
+  if v_order_status not in ('cancelled', 'returned') then
+    raise exception 'Stock can only be restored for cancelled or returned orders';
+  end if;
+
   if coalesce(v_stock_restored, false) then
     return;
   end if;
@@ -570,13 +579,15 @@ begin
   for v_item in
     select product_id, variant_id, sum(quantity)::integer as total_quantity
     from public.order_items
-    where order_id = p_order_id and (product_id is not null or variant_id is not null)
+    where order_id = p_order_id
+      and (product_id is not null or variant_id is not null)
     group by product_id, variant_id
     order by product_id nulls last, variant_id nulls first
   loop
     if v_item.variant_id is not null then
       update public.product_variants
-      set stock = stock + v_item.total_quantity, updated_at = now()
+      set stock = stock + v_item.total_quantity,
+          updated_at = now()
       where id = v_item.variant_id;
 
       if not found then
@@ -584,13 +595,16 @@ begin
       end if;
     elsif v_item.product_id is not null then
       update public.products
-      set stock = stock + v_item.total_quantity, updated_at = now()
+      set stock = stock + v_item.total_quantity,
+          updated_at = now()
       where id = v_item.product_id;
       -- If a product was deleted, its historical order_items.product_id is NULL.
     end if;
   end loop;
 
-  update public.orders set stock_restored = true where id = p_order_id;
+  update public.orders
+  set stock_restored = true
+  where id = p_order_id;
 end;
 $$;
 revoke all on function public.restore_stock(uuid) from public;
@@ -696,7 +710,7 @@ begin
     end
   where id = p_order_id;
 
-  if new_status = 'cancelled' and v_current_status <> 'cancelled' then
+  if new_status in ('cancelled', 'returned') and v_current_status <> new_status then
     perform public.restore_stock(p_order_id);
   end if;
 
