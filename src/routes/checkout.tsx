@@ -13,7 +13,11 @@ import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import {DELIVERY_METHODS,type DeliveryMethod,} from "@/lib/shipping-config";
 import { shippingService } from "@/lib/shipping-service";
-import { createOrder } from "@/lib/api/orders-service";
+import {
+  createOrder,
+  ORDER_CONFIRMATION_SNAPSHOT_KEY,
+  ORDER_CONFIRMATION_TOKEN_KEY,
+} from "@/lib/api/orders-service";
 import { productsService } from "@/lib/products-service";
 import { formatCurrency } from "@/lib/currency";
 import {trackInitiateCheckout,trackPurchase,} from "@/lib/meta-pixel";
@@ -340,6 +344,72 @@ try {
         ? result.orderId
         : undefined,
   });
+
+  // Keep a session-only snapshot of this exact checkout so confirmation never
+  // falls back to querying the newest order in the shared database.
+  const snapshotItems = detailed.map(({ product, quantity, variant }, index) => {
+    const freshProduct = currentProductsById.get(product.id) ?? product;
+    const freshVariant = variant
+      ? freshProduct.variants?.find((item) => item.id === variant.id)
+      : undefined;
+    const unitPrice = freshVariant?.price ?? freshProduct.price;
+
+    return {
+      id: `checkout-item-${index}-${product.id}`,
+      productId: product.id,
+      variantId: freshVariant?.id ?? variant?.id,
+      name: freshVariant
+        ? `${freshProduct.name} — ${freshVariant.name} (${freshVariant.code})`
+        : freshProduct.name,
+      image: freshVariant?.image || freshProduct.image || "",
+      unitPrice,
+      quantity,
+      lineTotal: unitPrice * quantity,
+    };
+  });
+
+  const snapshotSubtotal =
+    result.subtotal ??
+    snapshotItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const snapshotShippingFee = result.shippingFee ?? shippingFee ?? 0;
+  const orderSnapshot = {
+    id: result.orderId ?? `local-order-${Date.now()}`,
+    orderNumber: result.orderNumber ?? "",
+    createdAt: new Date().toISOString(),
+    contactStartedAt: null,
+    customer: {
+      fullName: fullName.trim(),
+      phone: phone.replace(/[\s-]/g, ""),
+    },
+    delivery: {
+      wilayaCode,
+      wilayaName: w.name,
+      method,
+      address: method === "home" ? address.trim() : undefined,
+      officeLocation: method === "office" ? officeLocation.trim() : undefined,
+    },
+    items: snapshotItems,
+    subtotal: snapshotSubtotal,
+    shippingFee: snapshotShippingFee,
+    total: result.total ?? snapshotSubtotal + snapshotShippingFee,
+    paymentMethod: "cod" as const,
+    status: "pending" as const,
+    notes: undefined,
+  };
+
+  sessionStorage.setItem(
+    ORDER_CONFIRMATION_SNAPSHOT_KEY,
+    JSON.stringify(orderSnapshot),
+  );
+  if (result.confirmationToken) {
+    sessionStorage.setItem(
+      ORDER_CONFIRMATION_TOKEN_KEY,
+      result.confirmationToken,
+    );
+  } else {
+    // Avoid reusing a previous order's token until the SQL migration is active.
+    sessionStorage.removeItem(ORDER_CONFIRMATION_TOKEN_KEY);
+  }
 
   clear();
 

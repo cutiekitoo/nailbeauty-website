@@ -20,7 +20,11 @@ import {
 import { CartProvider } from "@/lib/cart-context";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
-import { getLastOrder } from "@/lib/api/orders-service";
+import {
+  getOrderConfirmation,
+  ORDER_CONFIRMATION_SNAPSHOT_KEY,
+  ORDER_CONFIRMATION_TOKEN_KEY,
+} from "@/lib/api/orders-service";
 import type { Order } from "@/lib/orders";
 import { formatCurrency } from "@/lib/currency";
 
@@ -62,16 +66,61 @@ function Success() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    let active = true;
+
     async function loadOrder() {
-      const o = await getLastOrder();
-      if (!o) {
-        navigate({ to: "/" });
-        return;
+      const token = sessionStorage.getItem(ORDER_CONFIRMATION_TOKEN_KEY);
+
+      if (token) {
+        try {
+          const confirmedOrder = await getOrderConfirmation(token);
+          if (active && confirmedOrder) {
+            setOrder(confirmedOrder);
+            setLoaded(true);
+            sessionStorage.setItem(
+              ORDER_CONFIRMATION_SNAPSHOT_KEY,
+              JSON.stringify(confirmedOrder),
+            );
+            return;
+          }
+        } catch {
+          // Fall back only to this tab's checkout snapshot; never query another order.
+        }
       }
-      setOrder(o);
-      setLoaded(true);
+
+      try {
+        const rawSnapshot = sessionStorage.getItem(
+          ORDER_CONFIRMATION_SNAPSHOT_KEY,
+        );
+        if (rawSnapshot) {
+          const snapshot = JSON.parse(rawSnapshot) as Order;
+          if (
+            snapshot &&
+            typeof snapshot.id === "string" &&
+            typeof snapshot.orderNumber === "string" &&
+            snapshot.customer &&
+            Array.isArray(snapshot.items)
+          ) {
+            if (active) {
+              setOrder(snapshot);
+              setLoaded(true);
+              return;
+            }
+          }
+        }
+      } catch {
+        // Invalid session data is ignored.
+      }
+
+      if (active) {
+        navigate({ to: "/" });
+      }
     }
-    loadOrder();
+
+    void loadOrder();
+    return () => {
+      active = false;
+    };
   }, [navigate]);
 
   if (!loaded || !order) return null;

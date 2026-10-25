@@ -195,6 +195,10 @@ export async function createOrder(payload: {
   success: boolean;
   orderId?: string;
   orderNumber?: string;
+  confirmationToken?: string;
+  subtotal?: number;
+  shippingFee?: number;
+  total?: number;
   error?: string;
 }> {
   const { data, error } = await supabase.rpc("create_order", {
@@ -212,7 +216,45 @@ export async function createOrder(payload: {
     success: data.success,
     orderId: data.order_id,
     orderNumber: data.order_number,
+    confirmationToken:
+      typeof data.confirmation_token === "string"
+        ? data.confirmation_token
+        : undefined,
+    subtotal:
+      Number.isFinite(Number(data.subtotal))
+        ? Number(data.subtotal)
+        : undefined,
+    shippingFee:
+      Number.isFinite(Number(data.shipping_fee))
+        ? Number(data.shipping_fee)
+        : undefined,
+    total:
+      Number.isFinite(Number(data.total))
+        ? Number(data.total)
+        : undefined,
   };
+}
+
+export const ORDER_CONFIRMATION_TOKEN_KEY = "nailbeauty.order-confirmation-token";
+export const ORDER_CONFIRMATION_SNAPSHOT_KEY = "nailbeauty.order-confirmation-snapshot";
+
+export async function getOrderConfirmation(
+  confirmationToken: string,
+): Promise<Order | null> {
+  const { data, error } = await supabase.rpc("get_order_confirmation", {
+    p_confirmation_token: confirmationToken,
+  });
+
+  if (error || !data || typeof data !== "object") {
+    return null;
+  }
+
+  const row = data as Record<string, any>;
+  if (!row.id || !row.order_number || !Array.isArray(row.items)) {
+    return null;
+  }
+
+  return fromDbOrder(row, row.items);
 }
 
 export async function getRevenueStats() {
@@ -228,22 +270,4 @@ export async function getRevenueStats() {
     productRevenue: productRevenue.data || [],
     totalRevenue: totalRevenue.data,
   };
-}
-
-export async function getLastOrder(): Promise<Order | null> {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error) return null;
-
-  const { data: items } = await supabase
-    .from("order_items")
-    .select("*")
-    .eq("order_id", data.id);
-
-  return fromDbOrder(data, items || []);
 }

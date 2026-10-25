@@ -103,6 +103,7 @@ export interface Database {
           status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
           notes: string | null
           stock_restored: boolean
+          confirmation_token: string
           created_at: string
           updated_at: string
         }
@@ -123,6 +124,7 @@ export interface Database {
           status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
           notes?: string | null
           stock_restored?: boolean
+          confirmation_token?: string
           created_at?: string
           updated_at?: string
         }
@@ -143,6 +145,7 @@ export interface Database {
           status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
           notes?: string | null
           stock_restored?: boolean
+          confirmation_token?: string
           created_at?: string
           updated_at?: string
         }
@@ -253,6 +256,12 @@ export interface Database {
       create_order: {
         Args: {
           payload: Json
+        }
+        Returns: Json
+      }
+      get_order_confirmation: {
+        Args: {
+          p_confirmation_token: string
         }
         Returns: Json
       }
