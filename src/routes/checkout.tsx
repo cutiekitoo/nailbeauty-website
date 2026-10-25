@@ -200,30 +200,50 @@ if (!validate() || shippingFee == null) return;
 setSubmitting(true);
 
 try {
-  // Vérifier le stock juste avant de passer la commande.
-  const freshOOS: string[] = [];
+  // Récupérer en une seule fois les données fraîches de tous les produits du panier.
+  // getStorefrontByIds regroupe la lecture des produits et celle de leurs variantes.
+  // La RPC create_order conserve la validation transactionnelle finale côté base de données.
+  const currentProducts = await productsService.getStorefrontByIds(
+    Array.from(new Set(detailed.map(({ product }) => product.id))),
+  );
+  const currentProductsById = new Map(
+    currentProducts.map((product) => [product.id, product]),
+  );
 
+  const freshOOS: string[] = [];
+  const overQty: string[] = [];
+
+  // Une seule boucle valide la disponibilité et la quantité pour chaque ligne du panier.
   for (const d of detailed) {
-    const fresh = await productsService.getStorefront(
-      d.product.id
-    );
+    const fresh = currentProductsById.get(d.product.id);
 
     if (!fresh) {
       freshOOS.push(d.product.name);
       continue;
     }
 
+    const currentVariant = d.variant
+      ? fresh.variants?.find((variant) => variant.id === d.variant?.id)
+      : undefined;
+
     const currentStock = d.variant
-      ? fresh.variants?.find(
-          (v) => v.id === d.variant?.id
-        )?.stock ?? 0
+      ? currentVariant?.stock ?? 0
       : fresh.stock;
 
+    const itemLabel = d.variant
+      ? `${d.product.name} — ${d.variant.name}`
+      : d.product.name;
+
     if (currentStock <= 0) {
-      freshOOS.push(
+      freshOOS.push(itemLabel);
+      continue;
+    }
+
+    if (d.quantity > currentStock) {
+      overQty.push(
         d.variant
-          ? `${d.product.name} — ${d.variant.name}`
-          : d.product.name
+          ? `${itemLabel} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`
+          : `${itemLabel} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`,
       );
     }
   }
@@ -232,7 +252,7 @@ try {
     setErrors((prev) => ({
       ...prev,
       cart: `Certains produits sont en rupture de stock : ${freshOOS.join(
-        ", "
+        ", ",
       )}. Veuillez les retirer pour continuer.`,
     }));
 
@@ -240,38 +260,11 @@ try {
     return;
   }
 
-  // Vérifier les quantités demandées par rapport au stock actuel.
-  const overQty: string[] = [];
-
-  for (const d of detailed) {
-    const fresh = await productsService.getStorefront(
-      d.product.id
-    );
-
-    if (!fresh) {
-      continue;
-    }
-
-    const currentStock = d.variant
-      ? fresh.variants?.find(
-          (v) => v.id === d.variant?.id
-        )?.stock ?? 0
-      : fresh.stock;
-
-    if (d.quantity > currentStock) {
-      overQty.push(
-        d.variant
-          ? `${d.product.name} — ${d.variant.name} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`
-          : `${d.product.name} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`
-      );
-    }
-  }
-
   if (overQty.length > 0) {
     setErrors((prev) => ({
       ...prev,
       cart: `La quantité demandée dépasse le stock disponible : ${overQty.join(
-        ", "
+        ", ",
       )}.`,
     }));
 
