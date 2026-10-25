@@ -256,7 +256,7 @@ export function ProductCard({ product }: { product: Product }) {
                         disabled={!isAvailable || isAddingVariant}
                         aria-pressed={isSelected}
                         onClick={() => setSelectedVariantId(variant.id)}
-                        className={`flex min-h-20 flex-col items-start justify-between gap-2 rounded-2xl border p-3 text-left transition ${
+                        className={`flex min-h-24 items-center gap-3 rounded-2xl border p-3 text-left transition ${
                           isSelected
                             ? "border-primary bg-primary/10 ring-2 ring-primary/20"
                             : "border-border bg-card hover:border-primary/50"
@@ -266,26 +266,34 @@ export function ProductCard({ product }: { product: Product }) {
                             : "cursor-pointer"
                         }`}
                       >
-                        <span className="flex w-full items-start justify-between gap-2">
-                          <span className="font-semibold leading-tight">
-                            {variant.name}
+                        <img
+                          src={variant.image || variantProduct.image}
+                          alt={variant.image ? `${variant.name} (${variant.code})` : ""}
+                          loading="lazy"
+                          className="h-16 w-16 shrink-0 rounded-xl border border-border/60 bg-white object-contain"
+                        />
+                        <span className="min-w-0 flex-1 space-y-2">
+                          <span className="flex items-start justify-between gap-2">
+                            <span className="font-semibold leading-tight">
+                              {variant.name}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {variant.code}
+                            </span>
                           </span>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {variant.code}
-                          </span>
-                        </span>
-                        <span className="flex w-full items-center justify-between gap-2">
-                          <span className="text-sm font-semibold">
-                            {formatCurrency(variant.price)}
-                          </span>
-                          <span
-                            className={`text-xs font-medium ${
-                              isAvailable
-                                ? "text-emerald-600"
-                                : "text-destructive"
-                            }`}
-                          >
-                            {isAvailable ? "En stock" : "Épuisé"}
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold">
+                              {formatCurrency(variant.price)}
+                            </span>
+                            <span
+                              className={`text-xs font-medium ${
+                                isAvailable
+                                  ? "text-emerald-600"
+                                  : "text-destructive"
+                              }`}
+                            >
+                              {isAvailable ? "En stock" : "Épuisé"}
+                            </span>
                           </span>
                         </span>
                       </button>
@@ -295,15 +303,32 @@ export function ProductCard({ product }: { product: Product }) {
               </div>
 
               {selectedVariant ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  Variante sélectionnée :{" "}
-                  <span className="font-semibold text-foreground">
-                    {selectedVariant.name} · {selectedVariant.code}
-                  </span>
-                </p>
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-blush/20 via-card to-lavender/20 p-4">
+                  <p className="w-full text-sm font-semibold" role="status">
+                    Aperçu de la variante sélectionnée
+                  </p>
+                  <img
+                    src={selectedVariant.image || variantProduct.image}
+                    alt={`${variantProduct.name} — ${selectedVariant.name} (${selectedVariant.code})`}
+                    className="h-48 w-48 max-w-full rounded-2xl border border-border/60 bg-white object-contain p-2"
+                  />
+                  <div className="text-center">
+                    <p className="font-semibold">
+                      {selectedVariant.name} · {selectedVariant.code}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-primary">
+                      {formatCurrency(selectedVariant.price)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedVariant.image
+                        ? "Photo spécifique de cette variante"
+                        : "Photo générale du produit : aucune photo spécifique n’est renseignée pour cette variante."}
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground" role="status">
-                  Choisissez une variante pour continuer.
+                  Choisissez une variante pour afficher sa photo et continuer.
                 </p>
               )}
             </>
