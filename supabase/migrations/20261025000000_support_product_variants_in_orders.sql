@@ -54,34 +54,30 @@ create trigger product_variants_set_updated_at
   before update on public.product_variants
   for each row execute function public.set_updated_at();
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies where schemaname='public' and tablename='product_variants'
-      and policyname='product variants public active read'
-  ) then
-    execute 'create policy "product variants public active read"
-      on public.product_variants for select to anon, authenticated
-      using (is_active = true)';
-  end if;
+-- Remove older permissive policies: PostgreSQL combines permissive policies with OR,
+-- so leaving a public USING (true) policy would expose inactive variants too.
+drop policy if exists "product_variants public read" on public.product_variants;
+drop policy if exists "product variants public active read" on public.product_variants;
+create policy "product variants public active read"
+  on public.product_variants for select to anon, authenticated
+  using (is_active = true);
 
-  if not exists (
-    select 1 from pg_policies where schemaname='public' and tablename='product_variants'
-      and policyname='product variants admin write'
-  ) then
-    execute 'create policy "product variants admin write"
-      on public.product_variants for all to authenticated
-      using (public.has_role(auth.uid(), ''admin''))
-      with check (public.has_role(auth.uid(), ''admin''))';
-  end if;
-end $$;
+-- Normalize the admin policy name and ensure only one matching admin-write policy exists.
+drop policy if exists "product_variants admin write" on public.product_variants;
+drop policy if exists "product variants admin write" on public.product_variants;
+create policy "product variants admin write"
+  on public.product_variants for all to authenticated
+  using (public.has_role(auth.uid(), 'admin'))
+  with check (public.has_role(auth.uid(), 'admin'));
 
 alter table public.order_items add column if not exists variant_id uuid;
 alter table public.order_items drop constraint if exists order_items_variant_id_fkey;
+-- Preserve historical variant references and block deletion of variants used by orders.
+-- Validate the FK against existing data instead of leaving it NOT VALID.
 alter table public.order_items
   add constraint order_items_variant_id_fkey
   foreign key (variant_id) references public.product_variants(id)
-  on delete restrict not valid;
+  on delete restrict;
 create index if not exists order_items_variant_id_idx on public.order_items (variant_id);
 
 alter table public.orders add column if not exists stock_restored boolean not null default false;
