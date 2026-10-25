@@ -393,13 +393,45 @@ export const productsService = {
     if (failed?.error) throw failed.error;
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<{ archived: boolean }> {
+    // A product with variants referenced by old orders must stay in the database
+    // so the corresponding variant inventory can still be restored correctly.
+    const { data: variants, error: variantsError } = await supabase
+      .from("product_variants")
+      .select("id")
+      .eq("product_id", id);
+
+    if (variantsError) throw variantsError;
+
+    const variantIds = (variants || []).map((variant) => variant.id);
+
+    if (variantIds.length > 0) {
+      const { data: linkedItems, error: historyError } = await supabase
+        .from("order_items")
+        .select("id")
+        .in("variant_id", variantIds)
+        .limit(1);
+
+      if (historyError) throw historyError;
+
+      if (linkedItems?.length) {
+        const { error } = await supabase
+          .from("products")
+          .update({ is_visible: false })
+          .eq("id", id);
+
+        if (error) throw error;
+        return { archived: true };
+      }
+    }
+
     const { error } = await supabase
       .from("products")
       .delete()
       .eq("id", id);
 
     if (error) throw error;
+    return { archived: false };
   },
 
   async listVariants(

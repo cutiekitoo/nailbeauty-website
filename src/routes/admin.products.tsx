@@ -631,11 +631,17 @@ function AdminProducts() {
     }
 
     try {
-      await productsService.remove(deleteTarget.id);
+      const result = await productsService.remove(deleteTarget.id);
 
       setDeleteTarget(null);
 
-      toast.success("Product deleted");
+      if (result.archived) {
+        toast.info(
+          "Product hidden instead of deleted because previous orders reference one of its variants.",
+        );
+      } else {
+        toast.success("Product deleted");
+      }
 
       const data = await productsService.list();
       setItems(data);
