@@ -218,9 +218,11 @@ create index idx_order_items_product_id on public.order_items(product_id);
 create index idx_order_items_order_id on public.order_items(order_id);
 create index idx_order_items_variant_id on public.order_items(variant_id);
 
--- Public checkout must write orders only through the validated create_order(payload) RPC.
--- Direct client INSERT is intentionally disabled for both order tables.
-revoke insert on table public.orders, public.order_items from public, anon, authenticated;
+-- Order tables are never directly readable by anonymous/public roles.
+-- Guest checkout and confirmation are exposed only through validated, narrowly scoped RPCs.
+revoke all privileges on table public.orders, public.order_items from public;
+revoke all privileges on table public.orders, public.order_items from anon;
+revoke insert on table public.orders, public.order_items from authenticated;
 grant select, update, delete on public.orders to authenticated;
 grant all on public.orders to service_role;
 
