@@ -179,6 +179,28 @@ export const productsService = {
     return fromDbProduct(data);
   },
 
+  async listStorefrontPage(
+    offset: number,
+    limit: number
+  ): Promise<Product[]> {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("is_visible", true)
+      .order("display_order", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    // Product cards do not display variant data, so avoid waiting for an
+    // additional variants query before showing each batch of products.
+    return (data || []).map((row) =>
+      toStorefrontProduct(fromDbProduct(row))
+    );
+  },
+
   async listStorefront(): Promise<Product[]> {
     const products = (await this.list()).filter((product) => product.isVisible);
 

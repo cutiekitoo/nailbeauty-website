@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Sparkles, Truck, ShieldCheck, Instagram, ArrowRight } from "lucide-react";
 
 import heroImg from "@/assets/index-image.jpg";
@@ -165,38 +165,201 @@ function Hero() {
   );
 }
 
+const PRODUCTS_PER_BATCH = 10;
+
 function Catalog() {
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
+  const [searchProducts, setSearchProducts] = useState<Product[] | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [pageLoadError, setPageLoadError] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreRef = useRef(false);
+  const requestVersionRef = useRef(0);
+  const isSearching = query.trim().length > 0;
 
   useEffect(() => {
-    const loadProducts = async () => {
-      const data = await productsService.listStorefront();
-      setProducts(data);
+    let active = true;
+
+    const loadFirstPage = async (showLoading: boolean) => {
+      const requestVersion = ++requestVersionRef.current;
+      loadingMoreRef.current = false;
+
+      if (showLoading) {
+        setIsInitialLoading(true);
+      }
+
+      try {
+        const data = await productsService.listStorefrontPage(
+          0,
+          PRODUCTS_PER_BATCH
+        );
+
+        if (!active || requestVersion !== requestVersionRef.current) return;
+
+        setProducts(data);
+        setHasMoreProducts(data.length === PRODUCTS_PER_BATCH);
+        setPageLoadError(false);
+        setLoadMoreError(false);
+        setCatalogRevision((revision) => revision + 1);
+      } catch (error) {
+        console.error("Unable to load storefront products", error);
+        if (active && showLoading) {
+          setPageLoadError(true);
+        }
+      } finally {
+        if (active) {
+          setIsInitialLoading(false);
+        }
+      }
     };
 
-    loadProducts();
+    void loadFirstPage(true);
 
-    const unsubscribe = productsService.subscribe(async () => {
-      const data = await productsService.listStorefront();
-      setProducts(data);
+    const unsubscribe = productsService.subscribe(() => {
+      void loadFirstPage(false);
     });
 
-    return unsubscribe;
+    return () => {
+      active = false;
+      requestVersionRef.current += 1;
+      unsubscribe();
+    };
   }, []);
+
+  // Search still includes the full catalog, even though only ten products are
+  // initially rendered. It fetches the full list only when the user starts searching.
+  useEffect(() => {
+    if (!isSearching) {
+      setSearchProducts(null);
+      setIsSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setIsSearchLoading(true);
+
+    productsService
+      .listStorefront()
+      .then((data) => {
+        if (active) setSearchProducts(data);
+      })
+      .catch((error) => {
+        console.error("Unable to search storefront products", error);
+        if (active) setSearchProducts([]);
+      })
+      .finally(() => {
+        if (active) setIsSearchLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isSearching, catalogRevision]);
+
+  const loadMoreProducts = useCallback(async () => {
+    if (
+      isSearching ||
+      isInitialLoading ||
+      !hasMoreProducts ||
+      loadingMoreRef.current
+    ) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    setLoadMoreError(false);
+
+    const requestVersion = requestVersionRef.current;
+    const offset = products.length;
+
+    try {
+      const nextProducts = await productsService.listStorefrontPage(
+        offset,
+        PRODUCTS_PER_BATCH
+      );
+
+      if (requestVersion !== requestVersionRef.current) return;
+
+      setProducts((current) => {
+        const alreadyLoaded = new Set(current.map((product) => product.id));
+        return [
+          ...current,
+          ...nextProducts.filter((product) => !alreadyLoaded.has(product.id)),
+        ];
+      });
+      setHasMoreProducts(nextProducts.length === PRODUCTS_PER_BATCH);
+    } catch (error) {
+      console.error("Unable to load more storefront products", error);
+      if (requestVersion === requestVersionRef.current) {
+        setLoadMoreError(true);
+      }
+    } finally {
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [hasMoreProducts, isInitialLoading, isSearching, products.length]);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (
+      !target ||
+      isSearching ||
+      isInitialLoading ||
+      !hasMoreProducts ||
+      pageLoadError ||
+      loadMoreError
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadMoreProducts();
+        }
+      },
+      {
+        // Start fetching before the customer reaches the end of the list.
+        rootMargin: "600px 0px",
+      }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [
+    hasMoreProducts,
+    isInitialLoading,
+    isSearching,
+    loadMoreError,
+    loadMoreProducts,
+    pageLoadError,
+  ]);
+
+  const catalogProducts = isSearching ? searchProducts ?? [] : products;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    if (!q) return products;
+    if (!q) return catalogProducts;
 
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.fullDescription.toLowerCase().includes(q)
+    return catalogProducts.filter(
+      (product) =>
+        product.name.toLowerCase().includes(q) ||
+        product.description.toLowerCase().includes(q) ||
+        product.fullDescription.toLowerCase().includes(q)
     );
-  }, [query, products]);
+  }, [query, catalogProducts]);
+
+  const showSkeletons = isInitialLoading || (isSearching && isSearchLoading);
 
   return (
     <section
@@ -208,44 +371,101 @@ function Catalog() {
         <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
           Collection Pro Nail
         </p>
-  
+
         <h2 className="font-display text-3xl sm:text-4xl mb-3">
           Produits pour Nail Artists
         </h2>
-  
+
         <p className="text-sm text-muted-foreground">
           Qualité professionnelle pour salons et passionnées d’ongles.
         </p>
       </div>
-  
+
       {/* SEARCH */}
       <div className="relative max-w-lg mx-auto mb-10">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-  
+
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder="Rechercher un produit..."
           aria-label="Search products"
           className="w-full h-12 pl-11 pr-5 rounded-full bg-card border border-border shadow-[var(--shadow-soft)] text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
         />
       </div>
-  
-      {!filtered.length ? (
-        <p className="text-center text-muted-foreground py-12">
+
+      {showSkeletons ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-7" aria-label="Chargement des produits">
+          {Array.from({ length: PRODUCTS_PER_BATCH }, (_, index) => (
+            <ProductSkeleton key={`initial-skeleton-${index}`} />
+          ))}
+        </div>
+      ) : pageLoadError && !isSearching && products.length === 0 ? (
+        <p className="text-center text-muted-foreground py-12" role="status">
+          Impossible de charger les produits pour le moment. Veuillez actualiser la page.
+        </p>
+      ) : !filtered.length ? (
+        <p className="text-center text-muted-foreground py-12" role="status">
           Aucun produit trouvé pour "{query}"
         </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-7">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-7">
+            {filtered.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+            {!isSearching &&
+              isLoadingMore &&
+              Array.from({ length: PRODUCTS_PER_BATCH }, (_, index) => (
+                <ProductSkeleton key={`more-skeleton-${index}`} />
+              ))}
+          </div>
+
+          {!isSearching && hasMoreProducts && !pageLoadError && (
+            <div
+              ref={loadMoreRef}
+              className="flex min-h-12 items-center justify-center py-3 text-sm text-muted-foreground"
+              aria-live="polite"
+            >
+              {isLoadingMore ? (
+                <span>Chargement de 10 autres produits…</span>
+              ) : loadMoreError ? (
+                <button
+                  type="button"
+                  onClick={() => void loadMoreProducts()}
+                  className="rounded-full border border-border bg-card px-4 py-2 font-medium transition hover:bg-secondary"
+                >
+                  Réessayer le chargement
+                </button>
+              ) : null}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
 }
+
+function ProductSkeleton() {
+  return (
+    <div
+      className="animate-pulse overflow-hidden rounded-3xl border border-border/70 bg-card"
+      aria-hidden="true"
+    >
+      <div className="aspect-square bg-secondary/80" />
+      <div className="space-y-3 p-5">
+        <div className="h-3 w-14 rounded-full bg-secondary" />
+        <div className="h-5 w-4/5 rounded-full bg-secondary" />
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="h-5 w-20 rounded-full bg-secondary" />
+          <div className="h-9 w-24 rounded-full bg-secondary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Footer() {
   return (
     <footer className="border-t border-border/60 mt-12">
