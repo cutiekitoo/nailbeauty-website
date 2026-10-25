@@ -185,6 +185,7 @@ create table public.orders (
   notes text,
   shipped_at timestamptz,
   delivered_at timestamptz,
+  confirmation_token uuid not null default gen_random_uuid(),
   created_at timestamptz not null default now()
 );
 
@@ -192,6 +193,7 @@ create table public.orders (
 create index idx_orders_order_number on public.orders(order_number);
 create index idx_orders_customer_phone on public.orders(customer_phone);
 create index idx_orders_status on public.orders(status);
+create unique index orders_confirmation_token_uidx on public.orders(confirmation_token);
 
 -- Add stock_restored column for idempotent stock restoration
 alter table public.orders add column stock_restored boolean not null default false;
@@ -537,12 +539,108 @@ begin
     'subtotal', v_subtotal,
     'shipping_fee', v_shipping_fee,
     'total', v_total,
-    'status', 'pending'
+    'status', 'pending',
+    'confirmation_token', (
+      select o.confirmation_token
+      from public.orders o
+      where o.id = v_order_id
+    )
   );
 end;
 $$;
 revoke all on function public.create_order(jsonb) from public;
 grant execute on function public.create_order(jsonb) to anon, authenticated;
+
+-- Return only the order associated with the unguessable per-order confirmation token.
+-- This avoids granting public SELECT access to the orders or order_items tables.
+create or replace function public.get_order_confirmation(
+  p_confirmation_token uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $confirmation$
+declare
+  v_order record;
+  v_items jsonb;
+begin
+  if p_confirmation_token is null then
+    return null;
+  end if;
+
+  select
+    o.id,
+    o.order_number,
+    o.created_at,
+    o.contact_started_at,
+    o.customer_name,
+    o.customer_phone,
+    o.wilaya_code,
+    o.wilaya_name,
+    o.delivery_method,
+    o.address,
+    o.office_location,
+    o.subtotal,
+    o.shipping_fee,
+    o.total,
+    o.payment_method,
+    o.status,
+    o.notes
+  into v_order
+  from public.orders o
+  where o.confirmation_token = p_confirmation_token;
+
+  if not found then
+    return null;
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', oi.id,
+        'product_id', oi.product_id,
+        'variant_id', oi.variant_id,
+        'name', oi.name,
+        'image', oi.image,
+        'unit_price', oi.unit_price,
+        'quantity', oi.quantity,
+        'line_total', oi.line_total
+      )
+      order by oi.id
+    ),
+    '[]'::jsonb
+  )
+  into v_items
+  from public.order_items oi
+  where oi.order_id = v_order.id;
+
+  return jsonb_build_object(
+    'id', v_order.id,
+    'order_number', v_order.order_number,
+    'created_at', v_order.created_at,
+    'contact_started_at', v_order.contact_started_at,
+    'customer_name', v_order.customer_name,
+    'customer_phone', v_order.customer_phone,
+    'wilaya_code', v_order.wilaya_code,
+    'wilaya_name', v_order.wilaya_name,
+    'delivery_method', v_order.delivery_method,
+    'address', v_order.address,
+    'office_location', v_order.office_location,
+    'subtotal', v_order.subtotal,
+    'shipping_fee', v_order.shipping_fee,
+    'total', v_order.total,
+    'payment_method', v_order.payment_method,
+    'status', v_order.status,
+    'notes', v_order.notes,
+    'items', v_items
+  );
+end;
+$confirmation$;
+
+revoke all on function public.get_order_confirmation(uuid) from public;
+grant execute on function public.get_order_confirmation(uuid) to anon, authenticated;
+
 
 -- 1.7 Variant-aware, idempotent stock restoration for cancelled orders
 create or replace function public.restore_stock(p_order_id uuid)
