@@ -75,6 +75,44 @@ create trigger products_set_updated_at
   before update on public.products
   for each row execute function public.set_updated_at();
 
+
+-- 1.2.1 Product variants / colours / sizes
+create table public.product_variants (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references public.products(id) on delete cascade,
+  code text not null,
+  name text not null,
+  price numeric(12,2) not null check (price >= 0),
+  stock integer not null default 0 check (stock >= 0),
+  image text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (product_id, code)
+);
+
+create index idx_product_variants_product_active
+  on public.product_variants (product_id, is_active);
+
+grant select on public.product_variants to anon, authenticated;
+grant all on public.product_variants to authenticated;
+grant all on public.product_variants to service_role;
+
+alter table public.product_variants enable row level security;
+
+create policy "product variants public active read"
+  on public.product_variants for select to anon, authenticated
+  using (is_active = true);
+
+create policy "product variants admin write"
+  on public.product_variants for all to authenticated
+  using (public.has_role(auth.uid(), 'admin'))
+  with check (public.has_role(auth.uid(), 'admin'));
+
+create trigger product_variants_set_updated_at
+  before update on public.product_variants
+  for each row execute function public.set_updated_at();
+
 -- 1.3 Shipping rates (58 wilayas)
 create table public.shipping_rates (
   code text primary key,
@@ -145,6 +183,8 @@ create table public.orders (
   payment_method text not null default 'cod',
   status public.order_status not null default 'pending',
   notes text,
+  shipped_at timestamptz,
+  delivered_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -163,6 +203,7 @@ create table public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
   product_id uuid references public.products(id) on delete set null,
+  variant_id uuid references public.product_variants(id) on delete restrict,
   name text not null,
   image text,
   unit_price numeric(12,2) not null check (unit_price >= 0),
@@ -173,6 +214,7 @@ create table public.order_items (
 -- Add index for product revenue queries
 create index idx_order_items_product_id on public.order_items(product_id);
 create index idx_order_items_order_id on public.order_items(order_id);
+create index idx_order_items_variant_id on public.order_items(variant_id);
 
 grant insert on public.orders to anon, authenticated;
 grant select, update, delete on public.orders to authenticated;
@@ -219,10 +261,12 @@ as $$
   end;
 $$;
 
--- 1.6 Transaction-safe create_order RPC function (guest checkout, atomic)
+-- 1.6 Transaction-safe, variant-aware create_order RPC function
 create or replace function public.create_order(payload jsonb)
 returns jsonb
-language plpgsql security definer set search_path = public
+language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_order_id uuid;
@@ -236,202 +280,253 @@ declare
   v_office_location text;
   v_payment_method text;
   v_notes text;
-  v_subtotal numeric;
+  v_subtotal numeric := 0;
   v_shipping_fee numeric;
   v_total numeric;
   v_item_record record;
   v_product_id uuid;
+  v_variant_id uuid;
   v_current_stock integer;
   v_db_unit_price numeric;
   v_item_quantity integer;
   v_line_total numeric;
   v_product_name text;
   v_product_image text;
-  v_retry_count integer;
+  v_variant_name text;
+  v_variant_code text;
+  v_variant_price numeric;
+  v_variant_stock integer;
+  v_variant_image text;
+  v_variant_active boolean;
+  v_has_variants boolean;
+  v_retry_count integer := 0;
 begin
-  -- Extract payload fields
-  v_customer_name := (payload->'customer'->>'fullName');
-  v_customer_phone := (payload->'customer'->>'phone');
-  v_wilaya_code := (payload->'delivery'->>'wilayaCode');
-  v_wilaya_name := (payload->'delivery'->>'wilayaName');
-  v_delivery_method := (payload->'delivery'->>'method')::public.delivery_method;
-  v_address := (payload->'delivery'->>'address');
-  v_office_location := (payload->'delivery'->>'officeLocation');
-  v_payment_method := (payload->>'paymentMethod');
-  v_notes := (payload->>'notes');
-  
-  -- Validation
-  if v_customer_name is null or v_customer_name = '' then
+  if payload is null or jsonb_typeof(payload) is distinct from 'object' then
+    raise exception 'Invalid order payload';
+  end if;
+
+  v_customer_name := nullif(btrim(payload->'customer'->>'fullName'), '');
+  v_customer_phone := nullif(btrim(payload->'customer'->>'phone'), '');
+  v_wilaya_code := nullif(btrim(payload->'delivery'->>'wilayaCode'), '');
+  v_wilaya_name := nullif(btrim(payload->'delivery'->>'wilayaName'), '');
+  v_delivery_method := nullif(payload->'delivery'->>'method', '')::public.delivery_method;
+  v_address := nullif(btrim(payload->'delivery'->>'address'), '');
+  v_office_location := nullif(btrim(payload->'delivery'->>'officeLocation'), '');
+  v_payment_method := payload->>'paymentMethod';
+  v_notes := nullif(btrim(payload->>'notes'), '');
+
+  if v_customer_name is null then
     raise exception 'Customer name is required';
   end if;
-  
-  if v_customer_phone is null or v_customer_phone = '' then
+  if v_customer_phone is null then
     raise exception 'Customer phone is required';
   end if;
-  
-  if v_wilaya_code is null or v_wilaya_code = '' then
+  if v_wilaya_code is null then
     raise exception 'Wilaya code is required';
   end if;
-  
   if v_delivery_method is null then
     raise exception 'Delivery method is required';
   end if;
-  
-  if v_payment_method is null or v_payment_method != 'cod' then
+  if v_delivery_method = 'home' and v_address is null then
+    raise exception 'Delivery address is required';
+  end if;
+  if v_delivery_method = 'office' and v_office_location is null then
+    raise exception 'DHD office location is required';
+  end if;
+  if v_payment_method is distinct from 'cod' then
     raise exception 'Payment method must be cod';
   end if;
-  
-  if (payload->'items') is null or jsonb_array_length(payload->'items') = 0 then
+
+  if coalesce(jsonb_typeof(payload->'items'), 'null') <> 'array' then
+    raise exception 'Order items must be an array';
+  end if;
+  if jsonb_array_length(payload->'items') = 0 then
     raise exception 'Order must contain at least one item';
   end if;
-  
-  -- Calculate subtotal using server-side product prices and lock products for stock validation
-  -- Aggregate duplicate product IDs to prevent stock bypass
-  v_subtotal := 0;
-  for v_item_record in 
-    select (item->>'id')::uuid as product_id, 
-           sum((item->>'quantity')::integer) as total_quantity
-    from jsonb_array_elements(payload->'items') as item
-    group by (item->>'id')::uuid
-    order by (item->>'id')::uuid
+
+  -- Validate each line before aggregation so a zero-quantity line cannot hide behind duplicates.
+  if exists (
+    select 1
+    from jsonb_array_elements(payload->'items') as elements(item)
+    where nullif(elements.item->>'id', '') is null
+       or coalesce((elements.item->>'quantity')::integer, 0) <= 0
+  ) then
+    raise exception 'Every order item must have a product ID and a positive integer quantity';
+  end if;
+
+  -- Lock and validate each distinct product/variant pair in deterministic order.
+  -- Prices and stock are read from the database, not trusted from the browser.
+  for v_item_record in
+    select
+      (elements.item->>'id')::uuid as product_id,
+      coalesce(nullif(elements.item->>'variantId', ''), nullif(elements.item->>'variant_id', ''))::uuid as variant_id,
+      sum((elements.item->>'quantity')::integer)::integer as total_quantity
+    from jsonb_array_elements(payload->'items') as elements(item)
+    group by
+      (elements.item->>'id')::uuid,
+      coalesce(nullif(elements.item->>'variantId', ''), nullif(elements.item->>'variant_id', ''))::uuid
+    order by product_id, variant_id nulls first
   loop
     v_product_id := v_item_record.product_id;
+    v_variant_id := v_item_record.variant_id;
     v_item_quantity := v_item_record.total_quantity;
-    
-    if v_item_quantity is null or v_item_quantity <= 0 then
-      raise exception 'Item quantity must be greater than 0';
-    end if;
-    
-    -- Lock product and fetch price, name, image, and stock
-    select price, name, images[1], stock into v_db_unit_price, v_product_name, v_product_image, v_current_stock
+
+    select price, name, images[1], stock
+      into v_db_unit_price, v_product_name, v_product_image, v_current_stock
     from public.products
     where id = v_product_id
     for update;
-    
-    if v_db_unit_price is null then
+
+    if not found then
       raise exception 'Product not found with id: %', v_product_id;
     end if;
-    
-    if v_current_stock < v_item_quantity then
-      raise exception 'Insufficient stock for product. Available: %, Requested: %', v_current_stock, v_item_quantity;
+
+    if v_variant_id is not null then
+      select name, code, price, stock, image, is_active
+        into v_variant_name, v_variant_code, v_variant_price, v_variant_stock, v_variant_image, v_variant_active
+      from public.product_variants
+      where id = v_variant_id and product_id = v_product_id
+      for update;
+
+      if not found then
+        raise exception 'Variant % does not belong to product % or no longer exists', v_variant_id, v_product_id;
+      end if;
+      if v_variant_active is not true then
+        raise exception 'Variant % is inactive and cannot be ordered', v_variant_id;
+      end if;
+
+      v_current_stock := v_variant_stock;
+      v_db_unit_price := v_variant_price;
+      v_product_image := coalesce(nullif(v_variant_image, ''), v_product_image);
+    else
+      -- A product configured with variants must be ordered through one of those variants.
+      select exists (
+        select 1 from public.product_variants where product_id = v_product_id
+      ) into v_has_variants;
+
+      if v_has_variants then
+        raise exception 'A variant must be selected for product %', v_product_id;
+      end if;
     end if;
-    
-    v_line_total := v_db_unit_price * v_item_quantity;
-    v_subtotal := v_subtotal + v_line_total;
+
+    if v_current_stock < v_item_quantity then
+      raise exception 'Insufficient stock for item %. Available: %, requested: %',
+        coalesce(v_variant_id::text, v_product_id::text), v_current_stock, v_item_quantity;
+    end if;
+
+    v_subtotal := v_subtotal + (v_db_unit_price * v_item_quantity);
   end loop;
-  
-  -- Get shipping fee
-  select 
-    case 
-      when v_delivery_method = 'home' then home_rate
-      else office_rate
-    end
-  into v_shipping_fee
+
+  select case when v_delivery_method = 'home' then home_rate else office_rate end
+    into v_shipping_fee
   from public.shipping_rates
   where code = v_wilaya_code and enabled = true;
-  
+
   if v_shipping_fee is null then
     raise exception 'Shipping rate not found or disabled for wilaya code: %', v_wilaya_code;
   end if;
-  
+
   v_total := v_subtotal + v_shipping_fee;
-  
-  -- Generate order number with retry logic for collision handling
-  v_retry_count := 0;
+
   loop
-    v_order_number := 'NB-' || to_char(current_date, 'YYYYMMDD') || '-' || lpad(floor(random() * 9000 + 1000)::text, 4, '0');
-    
+    v_order_number := 'NB-' || to_char(current_date, 'YYYYMMDD') || '-' ||
+      lpad(floor(random() * 9000 + 1000)::text, 4, '0');
+
     begin
       insert into public.orders (
-        order_number,
-        customer_name,
-        customer_phone,
-        wilaya_code,
-        wilaya_name,
-        delivery_method,
-        address,
-        office_location,
-        subtotal,
-        shipping_fee,
-        total,
-        payment_method,
-        status,
-        notes
+        order_number, customer_name, customer_phone, wilaya_code, wilaya_name,
+        delivery_method, address, office_location, subtotal, shipping_fee,
+        total, payment_method, status, notes
       ) values (
-        v_order_number,
-        v_customer_name,
-        v_customer_phone,
-        v_wilaya_code,
-        v_wilaya_name,
-        v_delivery_method,
-        v_address,
-        v_office_location,
-        v_subtotal,
-        v_shipping_fee,
-        v_total,
-        v_payment_method,
-        'pending',
-        v_notes
+        v_order_number, v_customer_name, v_customer_phone, v_wilaya_code,
+        coalesce(v_wilaya_name, v_wilaya_code), v_delivery_method, v_address,
+        v_office_location, v_subtotal, v_shipping_fee, v_total, v_payment_method,
+        'pending', v_notes
       ) returning id into v_order_id;
-      exit; -- Success, exit retry loop
+      exit;
     exception when unique_violation then
       v_retry_count := v_retry_count + 1;
       if v_retry_count >= 10 then
-        raise exception 'Failed to generate unique order number after 10 attempts';
+        raise exception 'Failed to generate a unique order number after 10 attempts';
       end if;
     end;
   end loop;
-  
-  -- Insert order items and decrement stock (products already locked and validated)
-  -- First, decrement stock using aggregated quantities
-  for v_item_record in 
-    select (item->>'id')::uuid as product_id, 
-           sum((item->>'quantity')::integer) as total_quantity
-    from jsonb_array_elements(payload->'items') as item
-    group by (item->>'id')::uuid
-    order by (item->>'id')::uuid
+
+  -- Reserve stock from the exact product or variant, aggregating duplicate lines.
+  for v_item_record in
+    select
+      (elements.item->>'id')::uuid as product_id,
+      coalesce(nullif(elements.item->>'variantId', ''), nullif(elements.item->>'variant_id', ''))::uuid as variant_id,
+      sum((elements.item->>'quantity')::integer)::integer as total_quantity
+    from jsonb_array_elements(payload->'items') as elements(item)
+    group by
+      (elements.item->>'id')::uuid,
+      coalesce(nullif(elements.item->>'variantId', ''), nullif(elements.item->>'variant_id', ''))::uuid
+    order by product_id, variant_id nulls first
   loop
-    v_product_id := v_item_record.product_id;
-    v_item_quantity := v_item_record.total_quantity;
-    
-    -- Decrement stock
-    update public.products
-    set stock = stock - v_item_quantity, updated_at = now()
-    where id = v_product_id;
+    if v_item_record.variant_id is not null then
+      update public.product_variants
+      set stock = stock - v_item_record.total_quantity, updated_at = now()
+      where id = v_item_record.variant_id
+        and product_id = v_item_record.product_id
+        and is_active = true
+        and stock >= v_item_record.total_quantity;
+
+      if not found then
+        raise exception 'Variant stock changed while placing the order. Please retry';
+      end if;
+    else
+      update public.products
+      set stock = stock - v_item_record.total_quantity, updated_at = now()
+      where id = v_item_record.product_id
+        and stock >= v_item_record.total_quantity;
+
+      if not found then
+        raise exception 'Product stock changed while placing the order. Please retry';
+      end if;
+    end if;
   end loop;
-  
-  -- Then, insert individual order items as they appear in the payload
-  for v_item_record in select jsonb_array_elements(payload->'items') as item loop
+
+  -- Store one order line per submitted line, with database-authoritative prices and variant IDs.
+  for v_item_record in
+    select elements.item as item
+    from jsonb_array_elements(payload->'items') as elements(item)
+  loop
     v_product_id := (v_item_record.item->>'id')::uuid;
+    v_variant_id := coalesce(nullif(v_item_record.item->>'variantId', ''), nullif(v_item_record.item->>'variant_id', ''))::uuid;
     v_item_quantity := (v_item_record.item->>'quantity')::integer;
-    
-    -- Fetch product details (already locked)
-    select price, name, images[1] into v_db_unit_price, v_product_name, v_product_image
-    from public.products
-    where id = v_product_id;
-    
+
+    if v_variant_id is not null then
+      select p.name, coalesce(nullif(pv.image, ''), p.images[1]), pv.price
+        into v_product_name, v_product_image, v_db_unit_price
+      from public.products p
+      join public.product_variants pv on pv.product_id = p.id and pv.id = v_variant_id
+      where p.id = v_product_id;
+
+      if not found then
+        raise exception 'Could not load product/variant details for order item';
+      end if;
+    else
+      select name, images[1], price
+        into v_product_name, v_product_image, v_db_unit_price
+      from public.products
+      where id = v_product_id;
+
+      if not found then
+        raise exception 'Could not load product details for order item';
+      end if;
+    end if;
+
     v_line_total := v_db_unit_price * v_item_quantity;
-    
-    -- Insert order item
+
     insert into public.order_items (
-      order_id,
-      product_id,
-      name,
-      image,
-      unit_price,
-      quantity,
-      line_total
+      order_id, product_id, variant_id, name, image, unit_price, quantity, line_total
     ) values (
-      v_order_id,
-      v_product_id,
-      v_product_name,
-      v_product_image,
-      v_db_unit_price,
-      v_item_quantity,
-      v_line_total
+      v_order_id, v_product_id, v_variant_id, v_product_name, v_product_image,
+      v_db_unit_price, v_item_quantity, v_line_total
     );
   end loop;
-  
+
   return jsonb_build_object(
     'success', true,
     'order_id', v_order_id,
@@ -443,47 +538,62 @@ begin
   );
 end;
 $$;
-
+revoke all on function public.create_order(jsonb) from public;
 grant execute on function public.create_order(jsonb) to anon, authenticated;
 
--- 1.7 Stock restoration function for cancelled orders
+-- 1.7 Variant-aware, idempotent stock restoration for cancelled orders
 create or replace function public.restore_stock(p_order_id uuid)
 returns void
-language plpgsql security definer set search_path = public
+language plpgsql
+security definer
+set search_path = public
 as $$
 declare
-  v_item record;
   v_stock_restored boolean;
+  v_item record;
 begin
-  -- Lock order row and check if stock has already been restored
+  if auth.uid() is null or not public.has_role(auth.uid(), 'admin') then
+    raise exception 'Not authorized to restore order stock';
+  end if;
+
   select stock_restored into v_stock_restored
-  from public.orders
-  where id = p_order_id
+  from public.orders where id = p_order_id
   for update;
-  
-  if v_stock_restored then
+
+  if not found then
+    raise exception 'Order not found: %', p_order_id;
+  end if;
+  if coalesce(v_stock_restored, false) then
     return;
   end if;
-  
-  -- Restore stock for each item in deterministic product_id order
-  for v_item in 
-    select product_id, quantity 
-    from public.order_items 
-    where order_id = p_order_id and product_id is not null
-    order by product_id
+
+  for v_item in
+    select product_id, variant_id, sum(quantity)::integer as total_quantity
+    from public.order_items
+    where order_id = p_order_id and (product_id is not null or variant_id is not null)
+    group by product_id, variant_id
+    order by product_id nulls last, variant_id nulls first
   loop
-    update public.products
-    set stock = stock + v_item.quantity, updated_at = now()
-    where id = v_item.product_id;
+    if v_item.variant_id is not null then
+      update public.product_variants
+      set stock = stock + v_item.total_quantity, updated_at = now()
+      where id = v_item.variant_id;
+
+      if not found then
+        raise exception 'Cannot restore stock: variant % no longer exists', v_item.variant_id;
+      end if;
+    elsif v_item.product_id is not null then
+      update public.products
+      set stock = stock + v_item.total_quantity, updated_at = now()
+      where id = v_item.product_id;
+      -- If a product was deleted, its historical order_items.product_id is NULL.
+    end if;
   end loop;
-  
-  -- Mark stock as restored
-  update public.orders
-  set stock_restored = true
-  where id = p_order_id;
+
+  update public.orders set stock_restored = true where id = p_order_id;
 end;
 $$;
-
+revoke all on function public.restore_stock(uuid) from public;
 grant execute on function public.restore_stock(uuid) to authenticated;
 
 create or replace function public.update_order_status(
@@ -500,120 +610,94 @@ declare
   v_stock_restored boolean;
   v_item record;
   v_current_stock integer;
+  v_variant_active boolean;
 begin
-  -- Get current status and stock_restored flag
-  select status, stock_restored
-  into v_current_status, v_stock_restored
-  from public.orders
-  where id = p_order_id;
+  if auth.uid() is null or not public.has_role(auth.uid(), 'admin') then
+    raise exception 'Not authorized to update order status';
+  end if;
 
-  if v_current_status is null then
+  select status, stock_restored into v_current_status, v_stock_restored
+  from public.orders where id = p_order_id
+  for update;
+
+  if not found then
     raise exception 'Order not found';
   end if;
-
-  -- Validate transition
   if not public.validate_order_status_transition(v_current_status, new_status) then
-    raise exception 'Invalid status transition from % to %',
-      v_current_status,
-      new_status;
+    raise exception 'Invalid status transition from % to %', v_current_status, new_status;
   end if;
 
-  -- If reactivating from cancelled, check and decrement stock first
-  if v_current_status = 'cancelled' and new_status != 'cancelled' then
-
-    if v_stock_restored then
-
-      -- Check and decrement stock for each item in deterministic product_id order
-      for v_item in
-        select product_id, quantity
-        from public.order_items
-        where order_id = p_order_id
-          and product_id is not null
-        order by product_id
-      loop
-
-        -- Lock and check stock
-        select stock
-        into v_current_stock
-        from public.products
-        where id = v_item.product_id
+  -- When reactivating a cancelled order, reserve its previous product/variant quantities again.
+  if v_current_status = 'cancelled' and new_status <> 'cancelled' and v_stock_restored then
+    for v_item in
+      select product_id, variant_id, sum(quantity)::integer as total_quantity
+      from public.order_items
+      where order_id = p_order_id and (product_id is not null or variant_id is not null)
+      group by product_id, variant_id
+      order by product_id nulls last, variant_id nulls first
+    loop
+      if v_item.variant_id is not null then
+        select stock, is_active into v_current_stock, v_variant_active
+        from public.product_variants
+        where id = v_item.variant_id
         for update;
 
-        if v_current_stock is null then
-          raise exception 'Product not found with id: %',
-            v_item.product_id;
+        if not found or v_variant_active is not true then
+          raise exception 'Cannot reactivate order: variant % is missing or inactive', v_item.variant_id;
         end if;
+      elsif v_item.product_id is not null then
+        select stock into v_current_stock
+        from public.products where id = v_item.product_id
+        for update;
 
-        if v_current_stock < v_item.quantity then
-          raise exception
-            'Insufficient stock to reactivate order. Product ID: %, Available: %, Required: %',
-            v_item.product_id,
-            v_current_stock,
-            v_item.quantity;
+        if not found then
+          raise exception 'Cannot reactivate order: product % no longer exists', v_item.product_id;
         end if;
+      else
+        continue;
+      end if;
 
-        -- Decrement stock
+      if v_current_stock < v_item.total_quantity then
+        raise exception 'Insufficient stock to reactivate order. Item %, available: %, required: %',
+          coalesce(v_item.variant_id::text, v_item.product_id::text),
+          v_current_stock, v_item.total_quantity;
+      end if;
+
+      if v_item.variant_id is not null then
+        update public.product_variants
+        set stock = stock - v_item.total_quantity, updated_at = now()
+        where id = v_item.variant_id and is_active = true and stock >= v_item.total_quantity;
+      else
         update public.products
-        set
-          stock = stock - v_item.quantity,
-          updated_at = now()
-        where id = v_item.product_id;
+        set stock = stock - v_item.total_quantity, updated_at = now()
+        where id = v_item.product_id and stock >= v_item.total_quantity;
+      end if;
 
-      end loop;
+      if not found then
+        raise exception 'Stock changed while reactivating the order. Please retry';
+      end if;
+    end loop;
 
-      -- Reset stock_restored flag
-      update public.orders
-      set stock_restored = false
-      where id = p_order_id;
-
-    end if;
-
-    -- Reset tracking dates when reactivating a cancelled order
     update public.orders
-    set
-      shipped_at = null,
-      delivered_at = null
+    set stock_restored = false, shipped_at = null, delivered_at = null
     where id = p_order_id;
-
   end if;
 
-  -- Update status + tracking timestamps
   update public.orders
   set
     status = new_status,
-
-    shipped_at =
-      case
-        when new_status = 'shipped'
-             and v_current_status != 'shipped'
-        then now()
-
-        when new_status = 'cancelled'
-        then shipped_at
-
-        else shipped_at
-      end,
-
-    delivered_at =
-      case
-        when new_status = 'delivered'
-             and v_current_status != 'delivered'
-        then now()
-
-        when new_status = 'cancelled'
-        then delivered_at
-
-        else delivered_at
-      end
-
+    shipped_at = case
+      when new_status = 'shipped' and v_current_status <> 'shipped' then now()
+      else shipped_at
+    end,
+    delivered_at = case
+      when new_status = 'delivered' and v_current_status <> 'delivered' then now()
+      else delivered_at
+    end
   where id = p_order_id;
 
-  -- If cancelling, restore stock after status update
-  if new_status = 'cancelled'
-     and v_current_status != 'cancelled' then
-
+  if new_status = 'cancelled' and v_current_status <> 'cancelled' then
     perform public.restore_stock(p_order_id);
-
   end if;
 
   return jsonb_build_object(
@@ -624,7 +708,7 @@ begin
   );
 end;
 $$;
-
+revoke all on function public.update_order_status(uuid, public.order_status) from public;
 grant execute on function public.update_order_status(uuid, public.order_status)
 to authenticated;
 
@@ -660,6 +744,7 @@ grant select on public.total_revenue to service_role;
 
 -- 1.10 Realtime
 alter publication supabase_realtime add table public.products;
+alter publication supabase_realtime add table public.product_variants;
 alter publication supabase_realtime add table public.shipping_rates;
 alter publication supabase_realtime add table public.orders;
 
