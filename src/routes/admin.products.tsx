@@ -517,8 +517,11 @@ function AdminProducts() {
       (variant) => !currentIds.has(variant.id),
     );
 
+    let archivedRemovedVariants = 0;
+
     for (const variant of removedVariants) {
-      await productVariantsService.remove(variant.id);
+      const result = await productVariantsService.remove(variant.id);
+      if (result.archived) archivedRemovedVariants += 1;
     }
 
     for (const variant of existingVariants) {
@@ -543,6 +546,8 @@ function AdminProducts() {
         isActive: variant.isActive,
       });
     }
+
+    return archivedRemovedVariants;
   };
 
   const saveCreate = async () => {
@@ -591,12 +596,18 @@ function AdminProducts() {
     try {
       await productsService.update(editing.id, fromForm(form));
 
-      await saveVariants(editing.id);
+      const archivedRemovedVariants = await saveVariants(editing.id);
 
       setEditing(null);
       setVariants([]);
 
       toast.success("Product updated");
+
+      if (archivedRemovedVariants > 0) {
+        toast.info(
+          `${archivedRemovedVariants} variant(s) were kept inactive because previous orders reference them.`,
+        );
+      }
 
       const data = await productsService.list();
       setItems(data);

@@ -143,13 +143,34 @@ export const productVariantsService = {
     return fromDbVariant(data);
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<{ archived: boolean }> {
+    // Preserve variants referenced by historical orders so cancellations/returns
+    // can still restore stock to the correct variant.
+    const { data: linkedItems, error: lookupError } = await supabase
+      .from("order_items")
+      .select("id")
+      .eq("variant_id", id)
+      .limit(1);
+
+    if (lookupError) throw lookupError;
+
+    if (linkedItems?.length) {
+      const { error } = await supabase
+        .from("product_variants")
+        .update({ is_active: false })
+        .eq("id", id);
+
+      if (error) throw error;
+      return { archived: true };
+    }
+
     const { error } = await supabase
       .from("product_variants")
       .delete()
       .eq("id", id);
 
     if (error) throw error;
+    return { archived: false };
   },
 
   subscribe(productId: string, cb: () => void): () => void {
