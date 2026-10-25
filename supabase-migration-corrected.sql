@@ -216,20 +216,20 @@ create index idx_order_items_product_id on public.order_items(product_id);
 create index idx_order_items_order_id on public.order_items(order_id);
 create index idx_order_items_variant_id on public.order_items(variant_id);
 
-grant insert on public.orders to anon, authenticated;
+-- Public checkout must write orders only through the validated create_order(payload) RPC.
+-- Direct client INSERT is intentionally disabled for both order tables.
+revoke insert on table public.orders, public.order_items from public, anon, authenticated;
 grant select, update, delete on public.orders to authenticated;
 grant all on public.orders to service_role;
 
-grant insert on public.order_items to anon, authenticated;
 grant select on public.order_items to authenticated;
 grant all on public.order_items to service_role;
 
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 
--- RLS policies for orders (guest checkout, admin only for read/update/delete)
-create policy "orders anon insert"
-  on public.orders for insert to anon, authenticated with check (true);
+-- RLS policies for orders (admin only for read/update/delete).
+-- Guest checkout uses the SECURITY DEFINER create_order(jsonb) RPC, not direct table INSERT.
 create policy "orders admin read"
   on public.orders for select to authenticated using (public.has_role(auth.uid(),'admin'));
 create policy "orders admin update"
@@ -237,9 +237,7 @@ create policy "orders admin update"
 create policy "orders admin delete"
   on public.orders for delete to authenticated using (public.has_role(auth.uid(),'admin'));
 
--- RLS policies for order_items (guest checkout, admin only for read)
-create policy "order_items anon insert"
-  on public.order_items for insert to anon, authenticated with check (true);
+-- RLS policies for order_items (admin-only read; order lines are inserted by create_order RPC).
 create policy "order_items admin read"
   on public.order_items for select to authenticated using (public.has_role(auth.uid(),'admin'));
 
