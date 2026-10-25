@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 
@@ -78,6 +79,7 @@ export function CartProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [cartProducts, setCartProducts] = useState<Product[]>([]);
+  const cartProductsRef = useRef<Product[]>([]);
 
   useEffect(() => {
     try {
@@ -106,6 +108,10 @@ export function CartProvider({
     );
   }, [items, hydrated]);
 
+  useEffect(() => {
+    cartProductsRef.current = cartProducts;
+  }, [cartProducts]);
+
   // Keep the cart cache limited to products that are actually in the cart.
   // The same product ID is used for multiple variants, so each product is fetched once.
   const cartProductIdsKey = useMemo(
@@ -120,9 +126,10 @@ export function CartProvider({
       ? cartProductIdsKey.split("|")
       : [];
 
-    setCartProducts((current) =>
-      current.filter((product) => productIds.includes(product.id))
-    );
+    setCartProducts((current) => {
+      const next = current.filter((product) => productIds.includes(product.id));
+      return next.length === current.length ? current : next;
+    });
 
     if (productIds.length === 0) {
       setCartProducts([]);
@@ -148,7 +155,7 @@ export function CartProvider({
 
     // Adding an item already fetches and caches that product. Avoid issuing
     // the same initial request again if every cart product is already cached.
-    const cachedIds = new Set(cartProducts.map((product) => product.id));
+    const cachedIds = new Set(cartProductsRef.current.map((product) => product.id));
     if (productIds.some((id) => !cachedIds.has(id))) {
       void loadCartProducts();
     }

@@ -77,7 +77,7 @@ function fromDbVariant(row: any): ProductVariant {
 async function getVariants(productId: string): Promise<ProductVariant[]> {
   const { data, error } = await supabase
     .from("product_variants")
-    .select("*")
+    .select("id, product_id, code, name, price, stock, image, is_active")
     .eq("product_id", productId)
     .eq("is_active", true)
     .order("code", { ascending: true });
@@ -98,7 +98,7 @@ async function getVariantsForProducts(
 
   const { data, error } = await supabase
     .from("product_variants")
-    .select("*")
+    .select("id, product_id, code, name, price, stock, image, is_active")
     .in("product_id", productIds)
     .eq("is_active", true)
     .order("code", { ascending: true });
@@ -210,7 +210,7 @@ export const productsService = {
 
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select("id, name, price, stock, rating, description, images, is_visible, created_at, display_order")
       .in("id", ids)
       .eq("is_visible", true);
 
