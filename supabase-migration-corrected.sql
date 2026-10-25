@@ -250,7 +250,7 @@ create or replace function public.validate_order_status_transition(
 )
 returns boolean
 language sql immutable
-as $
+as $validator$
   select case
     when current_status = 'pending' and new_status in ('confirmed', 'cancelled') then true
     when current_status = 'confirmed' and new_status in ('shipped', 'cancelled') then true
@@ -259,7 +259,7 @@ as $
     when current_status = 'cancelled' and new_status = 'pending' then true
     else false
   end;
-$;
+$validator$;
 
 -- 1.6 Transaction-safe, variant-aware create_order RPC function
 create or replace function public.create_order(payload jsonb)

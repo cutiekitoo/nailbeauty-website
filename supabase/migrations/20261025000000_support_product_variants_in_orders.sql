@@ -449,7 +449,7 @@ create or replace function public.validate_order_status_transition(
 returns boolean
 language sql
 immutable
-as $
+as $validator$
   select case
     when current_status = 'pending'
       and new_status in ('confirmed', 'cancelled') then true
@@ -463,7 +463,7 @@ as $
       and new_status = 'pending' then true
     else false
   end;
-$;
+$validator$;
 
 create or replace function public.update_order_status(
   p_order_id uuid,
