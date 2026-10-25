@@ -57,22 +57,71 @@ function Body() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    let productRequest = 0;
+    let relatedRequest = 0;
+
+    setLoaded(false);
+    setProduct(null);
+    setRelated([]);
+
     const update = async () => {
-      const p = await productsService.getStorefront(id);
-      setProduct(p);
+      const currentProductRequest = ++productRequest;
+      const currentRelatedRequest = ++relatedRequest;
 
-      const list = await productsService.listStorefront();
-      setRelated(
-        list
-          .filter((x) => x.id !== id)
-          .slice(0, 4)
-      );
+      try {
+        const p = await productsService.getStorefront(id);
 
-      setLoaded(true);
+        if (!active || currentProductRequest !== productRequest) {
+          return;
+        }
+
+        setProduct(p);
+        setLoaded(true);
+
+        if (!p) {
+          setRelated([]);
+          return;
+        }
+
+        // Related products load independently and never delay the main product.
+        void productsService
+          .listRelatedStorefront(id, 4)
+          .then((list) => {
+            if (
+              active &&
+              currentProductRequest === productRequest &&
+              currentRelatedRequest === relatedRequest
+            ) {
+              setRelated(list);
+            }
+          })
+          .catch((error) => {
+            console.error("Unable to load related products", error);
+          });
+      } catch (error) {
+        console.error("Unable to load product details", error);
+
+        if (active && currentProductRequest === productRequest) {
+          setProduct(null);
+          setRelated([]);
+          setLoaded(true);
+        }
+      }
     };
 
-    update();
-    return productsService.subscribe(update);
+    void update();
+
+    const unsubscribe = productsService.subscribe(() => {
+      void update();
+    });
+
+    return () => {
+      active = false;
+      productRequest += 1;
+      relatedRequest += 1;
+      unsubscribe();
+    };
   }, [id]);
 
   if (!loaded) {

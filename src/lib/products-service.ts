@@ -229,6 +229,41 @@ export const productsService = {
     );
   },
 
+  async listRelatedStorefront(
+    excludedProductId: string,
+    limit = 4
+  ): Promise<Product[]> {
+    const safeLimit = Math.max(0, Math.floor(limit));
+
+    if (safeLimit === 0) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, name, price, stock, rating, description, images, is_visible, created_at, display_order")
+      .eq("is_visible", true)
+      .neq("id", excludedProductId)
+      .order("display_order", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(safeLimit);
+
+    if (error) throw error;
+
+    const relatedProducts = (data || []).map(fromDbProduct);
+    const variantsByProduct = await getVariantsForProducts(
+      relatedProducts.map((product) => product.id)
+    );
+
+    return relatedProducts.map((product) =>
+      toStorefrontProduct(
+        product,
+        variantsByProduct.get(product.id) || []
+      )
+    );
+  },
+
   async listStorefront(): Promise<Product[]> {
     const products = (await this.list()).filter((product) => product.isVisible);
 
