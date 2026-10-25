@@ -52,7 +52,7 @@ export function ProductCard({ product }: { product: Product }) {
       // The first product batch is intentionally loaded without variants for
       // speed. Fetch complete data only when the customer clicks "Ajouter".
       const currentProduct =
-        product.variants !== undefined
+        product.variants && product.variants.length > 0
           ? product
           : await productsService.getStorefront(product.id);
 
