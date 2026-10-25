@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Star, Eye, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,7 +18,13 @@ import {
 
 export function ProductCard({ product }: { product: Product }) {
   const { add, open } = useCart();
-  const outOfStock = product.stock <= 0;
+  const hasVariants = Boolean(product.variants?.length);
+  const allVariantsOutOfStock =
+    hasVariants &&
+    product.variants!.every((variant) => variant.stock <= 0);
+  const outOfStock = hasVariants
+    ? allVariantsOutOfStock
+    : product.stock <= 0;
   const { t } = useTranslation();
 
   const [variantProduct, setVariantProduct] = useState<Product | null>(null);
@@ -33,7 +39,7 @@ export function ProductCard({ product }: { product: Product }) {
   const hasAvailableVariants = variants.some((variant) => variant.stock > 0);
 
   const handleQuickAdd = async (
-    event: React.MouseEvent<HTMLButtonElement>,
+    event: MouseEvent<HTMLButtonElement>,
   ) => {
     event.preventDefault();
     event.stopPropagation();
@@ -116,6 +122,9 @@ export function ProductCard({ product }: { product: Product }) {
         setSelectedVariantId("");
         open();
       }
+    } catch (error) {
+      console.error("Unable to add selected variant", error);
+      toast.error("Impossible d’ajouter cette variante. Réessayez.");
     } finally {
       setIsAddingVariant(false);
     }
@@ -177,14 +186,9 @@ export function ProductCard({ product }: { product: Product }) {
 
             <button
               type="button"
-              aria-disabled={outOfStock}
+              aria-disabled={isResolvingAdd || allVariantsOutOfStock}
               onClick={handleQuickAdd}
-              disabled={
-                isResolvingAdd ||
-                (product.variants !== undefined &&
-                  product.variants.length > 0 &&
-                  product.variants.every((variant) => variant.stock <= 0))
-              }
+              disabled={isResolvingAdd || allVariantsOutOfStock}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-[var(--shadow-soft)] hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
             >
               {isResolvingAdd ? (
