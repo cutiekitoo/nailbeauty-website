@@ -207,7 +207,7 @@ try {
     Array.from(new Set(detailed.map(({ product }) => product.id))),
   );
   const currentProductsById = new Map(
-    currentProducts.map((product) => [product.id, product]),
+    currentProducts.map((product) => [product.id, product] as const),
   );
 
   const freshOOS: string[] = [];
@@ -241,9 +241,7 @@ try {
 
     if (d.quantity > currentStock) {
       overQty.push(
-        d.variant
-          ? `${itemLabel} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`
-          : `${itemLabel} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`,
+        `${itemLabel} (il ne reste que ${currentStock}, quantité demandée : ${d.quantity})`,
       );
     }
   }
