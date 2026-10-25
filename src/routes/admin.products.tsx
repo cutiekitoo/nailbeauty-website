@@ -1032,7 +1032,7 @@ function AdminProducts() {
                     <Upload className="w-6 h-6 mx-auto text-muted-foreground" />
 
                     <p className="text-sm text-muted-foreground mt-2">
-                      Upload one or more product images (max 2MB each).
+                      Photos up to 12 MB are resized and converted to WebP automatically (max 2 MB stored). GIF/SVG files must be 2 MB or smaller.
                     </p>
                   </div>
                 ) : (
@@ -1331,7 +1331,7 @@ function AdminProducts() {
                                   </Button>
 
                                   <p className="text-xs text-muted-foreground mt-2">
-                                    Max 2MB. Uses the existing
+                                    Photos up to 12 MB are optimized to WebP (max 2 MB stored). GIF/SVG: max 2 MB. Uses the existing
                                     product-images bucket.
                                   </p>
                                 </div>
