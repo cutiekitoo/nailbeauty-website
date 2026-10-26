@@ -100,8 +100,10 @@ export interface Database {
           shipping_fee: number
           total: number
           payment_method: string
-          status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+          status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
           notes: string | null
+          deferred_until: string | null
+          deferred_note: string | null
           stock_restored: boolean
           confirmation_token: string
           created_at: string
@@ -121,8 +123,10 @@ export interface Database {
           shipping_fee: number
           total: number
           payment_method: string
-          status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+          status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
           notes?: string | null
+          deferred_until?: string | null
+          deferred_note?: string | null
           stock_restored?: boolean
           confirmation_token?: string
           created_at?: string
@@ -142,8 +146,10 @@ export interface Database {
           shipping_fee?: number
           total?: number
           payment_method?: string
-          status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+          status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
           notes?: string | null
+          deferred_until?: string | null
+          deferred_note?: string | null
           stock_restored?: boolean
           confirmation_token?: string
           created_at?: string
@@ -265,6 +271,14 @@ export interface Database {
         }
         Returns: Json
       }
+      defer_order: {
+        Args: {
+          p_order_id: string
+          p_deferred_until: string | null
+          p_deferred_note: string
+        }
+        Returns: Json
+      }
       restore_stock: {
         Args: {
           p_order_id: string
@@ -274,14 +288,14 @@ export interface Database {
       update_order_status: {
         Args: {
           p_order_id: string
-          new_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+          new_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
         }
         Returns: Json
       }
       validate_order_status_transition: {
         Args: {
-          current_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
-          new_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+          current_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
+          new_status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
         }
         Returns: boolean
       }

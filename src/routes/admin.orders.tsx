@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 import {
@@ -93,6 +94,13 @@ const fmtDate = (iso: string) =>
     minute: "2-digit",
   });
 
+const fmtDeferredDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("fr-DZ", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
   
 const openWhatsApp = (
   phone: string,
@@ -141,6 +149,7 @@ const statusStyles: Record<OrderStatus, string> = {
   delivered: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
   cancelled: "bg-rose-100 text-rose-800 hover:bg-rose-100",
   returned: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+  deferred: "bg-violet-100 text-violet-800 hover:bg-violet-100",
 };
 
 function StatusBadge({ status }: { status: OrderStatus }) {
@@ -151,6 +160,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
     delivered: "Livrée",
     cancelled: "Annulée",
     returned: "Retour",
+    deferred: "Différée",
   };
 
   return (
@@ -170,6 +180,11 @@ function AdminOrders() {
   const [statusFilter, setStatusFilter] =
     useState<"all" | "new" | OrderStatus>("all");
   const [viewing, setViewing] = useState<Order | null>(null);
+  const [orderView, setOrderView] = useState<"regular" | "deferred">("regular");
+  const [deferringOrder, setDeferringOrder] = useState<Order | null>(null);
+  const [deferredUntil, setDeferredUntil] = useState("");
+  const [deferredNote, setDeferredNote] = useState("");
+  const [isDeferring, setIsDeferring] = useState(false);
 
   // Shipment tracking
   const [shippedOrders, setShippedOrders] = useState<
@@ -284,6 +299,7 @@ function AdminOrders() {
       pending: by("pending"),
       confirmed: by("confirmed"),
       delivered: by("delivered"),
+      deferred: by("deferred"),
     };
   }, [orders]);
 
@@ -294,6 +310,13 @@ function AdminOrders() {
       const status = o.status ?? "pending";
 
       const isNewPending = status === "pending" && !o.contactStartedAt;
+
+      if (orderView === "deferred" && status !== "deferred") {
+        return false;
+      }
+      if (orderView === "regular" && status === "deferred") {
+        return false;
+      }
 
       if (statusFilter === "new" && !isNewPending) {
         return false;
@@ -317,7 +340,7 @@ function AdminOrders() {
         o.customer.phone.toLowerCase().includes(q)
       );
     });
-  }, [orders, query, statusFilter]);
+  }, [orders, query, statusFilter, orderView]);
 
   const markAsContacted = async (order: Order) => {
     if (order.status !== "pending" || order.contactStartedAt) {
@@ -346,7 +369,13 @@ function AdminOrders() {
     try {
       await ordersService.updateStatus(orderId, status);
 
-      toast.success(`Order marked as ${status}`);
+      toast.success(
+        status === "confirmed"
+          ? "Commande remise dans la liste de préparation."
+          : status === "deferred"
+            ? "Commande déplacée dans les commandes différées."
+            : `Commande mise à jour : ${status}`,
+      );
 
       const data = await ordersService.list();
       setOrders(data);
@@ -370,6 +399,56 @@ function AdminOrders() {
           ? err.message
           : "Failed to update order status",
       );
+    }
+  };
+
+  const startDeferring = (order: Order) => {
+    setDeferringOrder(order);
+    setDeferredUntil(
+      order.status === "deferred" ? order.deferredUntil ?? "" : "",
+    );
+    setDeferredNote(
+      order.status === "deferred" ? order.deferredNote ?? "" : "",
+    );
+  };
+
+  const saveDeferredOrder = async () => {
+    if (!deferringOrder) return;
+
+    if (!deferredNote.trim()) {
+      toast.error("Ajoute une note pour ne pas oublier pourquoi cette commande est différée.");
+      return;
+    }
+
+    setIsDeferring(true);
+    try {
+      await ordersService.defer(
+        deferringOrder.id,
+        deferredUntil || null,
+        deferredNote,
+      );
+
+      const refreshed = await ordersService.list();
+      setOrders(refreshed);
+      setViewing((current) =>
+        current?.id === deferringOrder.id
+          ? refreshed.find((item) => item.id === deferringOrder.id) ?? null
+          : current,
+      );
+      toast.success("Commande enregistrée dans les commandes différées.");
+      setDeferringOrder(null);
+      setDeferredUntil("");
+      setDeferredNote("");
+      setOrderView("deferred");
+      setStatusFilter("all");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Impossible de différer cette commande.",
+      );
+    } finally {
+      setIsDeferring(false);
     }
   };
 
@@ -531,7 +610,7 @@ function AdminOrders() {
         </div>
 
         {/* Stats */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             icon={Bell}
             label="New Orders"
@@ -566,10 +645,44 @@ function AdminOrders() {
             value={stats.delivered}
             tone="bg-emerald-100 text-emerald-700"
           />
+
+          <StatCard
+            icon={Clock}
+            label="Commandes différées"
+            value={stats.deferred}
+            tone="bg-violet-100 text-violet-700"
+          />
+        </div>
+
+        {/* Séparer les commandes différées de la liste habituelle à préparer. */}
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={orderView === "regular" ? "default" : "outline"}
+            className="rounded-xl"
+            onClick={() => {
+              setOrderView("regular");
+              setStatusFilter("all");
+            }}
+          >
+            Commandes habituelles ({orders.filter((o) => o.status !== "deferred").length})
+          </Button>
+          <Button
+            type="button"
+            variant={orderView === "deferred" ? "default" : "outline"}
+            className="rounded-xl"
+            onClick={() => {
+              setOrderView("deferred");
+              setStatusFilter("all");
+            }}
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            Commandes différées ({stats.deferred})
+          </Button>
         </div>
 
         {/* Filters */}
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
 
@@ -583,9 +696,11 @@ function AdminOrders() {
 
           <Select
             value={statusFilter}
-            onValueChange={(v) =>
-              setStatusFilter(v as typeof statusFilter)
-            }
+            onValueChange={(v) => {
+              const nextFilter = v as typeof statusFilter;
+              setStatusFilter(nextFilter);
+              setOrderView(nextFilter === "deferred" ? "deferred" : "regular");
+            }}
           >
             <SelectTrigger className="w-full sm:w-48 rounded-xl bg-card">
               <SelectValue placeholder="Status" />
@@ -625,6 +740,9 @@ function AdminOrders() {
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Collection</TableHead>
+                  {orderView === "deferred" && (
+                    <TableHead>Note / date prévue</TableHead>
+                  )}
                   <TableHead className="text-right">
                     Actions
                   </TableHead>
@@ -635,7 +753,7 @@ function AdminOrders() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={orderView === "deferred" ? 11 : 10}
                       className="text-center py-10 text-muted-foreground"
                     >
                       No orders match your filters.
@@ -735,6 +853,19 @@ function AdminOrders() {
                           )}
                         </TableCell>
 
+                        {orderView === "deferred" && (
+                          <TableCell className="max-w-sm">
+                            <p className="whitespace-pre-wrap text-sm">
+                              {o.deferredNote || "Aucune note"}
+                            </p>
+                            {o.deferredUntil && (
+                              <p className="mt-1 text-xs font-medium text-violet-700">
+                                Envoi prévu le {fmtDeferredDate(o.deferredUntil)}
+                              </p>
+                            )}
+                          </TableCell>
+                        )}
+
                         <TableCell className="text-right">
 <div className="flex items-center justify-end gap-2">
   <Button
@@ -754,6 +885,41 @@ function AdminOrders() {
     <MessageCircle className="w-4 h-4 text-emerald-600" />
     <span className="hidden sm:inline">WhatsApp</span>
   </Button>
+
+  {status === "confirmed" && (
+    <Button
+      size="sm"
+      variant="outline"
+      className="rounded-lg"
+      onClick={() => startDeferring(o)}
+    >
+      <Clock className="w-4 h-4" />
+      <span className="hidden xl:inline">Différer</span>
+    </Button>
+  )}
+
+  {status === "deferred" && (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="rounded-lg"
+        onClick={() => startDeferring(o)}
+      >
+        <Pencil className="w-4 h-4" />
+        <span className="hidden xl:inline">Modifier</span>
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="rounded-lg text-violet-700"
+        onClick={() => void setStatus(o.id, "confirmed")}
+      >
+        <CheckCircle2 className="w-4 h-4" />
+        <span className="hidden xl:inline">Reprendre</span>
+      </Button>
+    </>
+  )}
 
   <Button
     size="sm"
@@ -788,6 +954,99 @@ function AdminOrders() {
     );
   }}
 />
+      <Dialog
+        open={!!deferringOrder}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !isDeferring) {
+            setDeferringOrder(null);
+            setDeferredUntil("");
+            setDeferredNote("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {deferringOrder?.status === "deferred" ? "Modifier le report" : "Différer la commande"} {deferringOrder?.orderNumber}
+            </DialogTitle>
+            <DialogDescription>
+              La commande quittera la liste habituelle et restera dans « Commandes différées ».
+              Son stock réservé ne sera pas modifié.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="deferred-until" className="text-sm font-medium">
+                Date prévue d'envoi (facultative)
+              </label>
+              <Input
+                id="deferred-until"
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                value={deferredUntil}
+                onChange={(event) => setDeferredUntil(event.target.value)}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="deferred-note" className="text-sm font-medium">
+                Note interne (obligatoire)
+              </label>
+              <textarea
+                id="deferred-note"
+                value={deferredNote}
+                onChange={(event) => setDeferredNote(event.target.value)}
+                placeholder="Ex. : La cliente souhaite un envoi groupé après le prochain arrivage."
+                rows={4}
+                maxLength={2000}
+                className="w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                Cette note est visible dans l'administration uniquement.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={isDeferring}
+              onClick={() => {
+                setDeferringOrder(null);
+                setDeferredUntil("");
+                setDeferredNote("");
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl"
+              disabled={isDeferring || !deferredNote.trim()}
+              onClick={() => void saveDeferredOrder()}
+            >
+              {isDeferring ? "Enregistrement…" : "Enregistrer le report"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <OrderDetailsDialog
+        order={viewing}
+        onClose={() => setViewing(null)}
+        onStatusChange={setStatus}
+        onSaved={async (orderId) => {
+          const refreshedOrders = await ordersService.list();
+          setOrders(refreshedOrders);
+          setViewing(
+            refreshedOrders.find((item) => item.id === orderId) ?? null
+          );
+        }}
+      />
     </div>
   );
 }
@@ -1543,6 +1802,20 @@ function OrderDetailsDialog({
                 </span>
               </div>
             </div>
+
+            {current === "deferred" && (
+              <InfoCard title="Note de report">
+                {order.deferredUntil && (
+                  <Row
+                    k="Date prévue d'envoi"
+                    v={fmtDeferredDate(order.deferredUntil)}
+                  />
+                )}
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                  {order.deferredNote || "Aucune note"}
+                </p>
+              </InfoCard>
+            )}
 
             {order.notes && (
               <InfoCard title="Order Notes">

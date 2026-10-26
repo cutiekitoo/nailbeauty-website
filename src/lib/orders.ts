@@ -17,7 +17,8 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "cancelled"
-  | "returned";
+  | "returned"
+  | "deferred";
 
 export type Order = {
   id: string;
@@ -42,6 +43,8 @@ export type Order = {
   paymentMethod: "cod";
   status: OrderStatus;
   notes?: string;
+  deferredUntil?: string | null;
+  deferredNote?: string | null;
 };
 
 export const ORDER_STATUSES: OrderStatus[] = [
@@ -51,4 +54,5 @@ export const ORDER_STATUSES: OrderStatus[] = [
   "delivered",
   "cancelled",
   "returned",
+  "deferred",
 ];

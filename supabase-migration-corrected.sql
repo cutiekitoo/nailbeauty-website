@@ -164,7 +164,7 @@ insert into public.shipping_rates (code, name, home_rate, office_rate) values
 ('57','El M''Ghair',1000,800),('58','El Meniaa',1200,900);
 
 -- 1.4 Orders + order items (guest checkout, no user_id)
-create type public.order_status as enum ('pending','confirmed','shipped','delivered','cancelled','returned');
+create type public.order_status as enum ('pending','confirmed','shipped','delivered','cancelled','returned','deferred');
 create type public.delivery_method as enum ('home','office');
 
 create table public.orders (
@@ -183,6 +183,8 @@ create table public.orders (
   payment_method text not null default 'cod',
   status public.order_status not null default 'pending',
   notes text,
+  deferred_until date,
+  deferred_note text,
   shipped_at timestamptz,
   delivered_at timestamptz,
   confirmation_token uuid not null default gen_random_uuid(),
@@ -255,13 +257,68 @@ language sql immutable
 as $validator$
   select case
     when current_status = 'pending' and new_status in ('confirmed', 'cancelled') then true
-    when current_status = 'confirmed' and new_status in ('shipped', 'cancelled') then true
+    when current_status = 'confirmed' and new_status in ('shipped', 'cancelled', 'deferred') then true
+    when current_status = 'deferred' and new_status in ('confirmed', 'cancelled') then true
     when current_status = 'shipped' and new_status in ('delivered', 'returned', 'cancelled') then true
     when current_status = 'delivered' and new_status = 'returned' then true
     when current_status = 'cancelled' and new_status = 'pending' then true
     else false
   end;
 $validator$;
+
+-- Place a confirmed order in a separate deferred queue with an internal note.
+create or replace function public.defer_order(
+  p_order_id uuid,
+  p_deferred_until date,
+  p_deferred_note text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $defer$
+declare
+  v_current_status public.order_status;
+  v_note text := nullif(btrim(p_deferred_note), '');
+begin
+  if auth.uid() is null or not public.has_role(auth.uid(), 'admin') then
+    raise exception 'Not authorized to defer orders';
+  end if;
+
+  if v_note is null then
+    raise exception 'A note is required when deferring an order';
+  end if;
+
+  select status into v_current_status
+  from public.orders
+  where id = p_order_id
+  for update;
+
+  if not found then
+    raise exception 'Order not found';
+  end if;
+
+  if v_current_status not in ('confirmed', 'deferred') then
+    raise exception 'Only confirmed orders can be deferred';
+  end if;
+
+  update public.orders
+  set status = 'deferred',
+      deferred_until = p_deferred_until,
+      deferred_note = v_note
+  where id = p_order_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'order_id', p_order_id,
+    'status', 'deferred',
+    'deferred_until', p_deferred_until,
+    'deferred_note', v_note
+  );
+end;
+$defer$;
+revoke all on function public.defer_order(uuid, date, text) from public;
+grant execute on function public.defer_order(uuid, date, text) to authenticated;
 
 -- 1.6 Transaction-safe, variant-aware create_order RPC function
 create or replace function public.create_order(payload jsonb)

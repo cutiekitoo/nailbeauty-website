@@ -39,6 +39,8 @@ function fromDbOrder(row: any, items: any[]): Order {
     paymentMethod: row.payment_method,
     status: row.status,
     notes: row.notes || undefined,
+    deferredUntil: row.deferred_until ?? null,
+    deferredNote: row.deferred_note || undefined,
   };
 }
 
@@ -90,6 +92,20 @@ export const ordersService = {
     const { error } = await supabase.rpc("update_order_status", {
       p_order_id: orderId,
       new_status: status,
+    });
+
+    if (error) throw error;
+  },
+
+  async defer(
+    orderId: string,
+    deferredUntil: string | null,
+    deferredNote: string,
+  ): Promise<void> {
+    const { error } = await supabase.rpc("defer_order", {
+      p_order_id: orderId,
+      p_deferred_until: deferredUntil || null,
+      p_deferred_note: deferredNote.trim(),
     });
 
     if (error) throw error;
