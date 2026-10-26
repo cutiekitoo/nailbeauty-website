@@ -1437,6 +1437,7 @@ function OrderDetailsDialog({
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                 <Select
                   value={current}
+                  disabled={current === "deferred"}
                   onValueChange={(value) =>
                     onStatusChange(order.id, value as OrderStatus)
                   }
@@ -1471,7 +1472,7 @@ function OrderDetailsDialog({
                   <QuickBtn
                     icon={Truck}
                     label="Ship"
-                    disabled={current === "shipped"}
+                    disabled={current === "shipped" || current === "deferred"}
                     onClick={() =>
                       onStatusChange(order.id, "shipped")
                     }
@@ -1480,7 +1481,7 @@ function OrderDetailsDialog({
                   <QuickBtn
                     icon={Package}
                     label="Deliver"
-                    disabled={current === "delivered"}
+                    disabled={current === "delivered" || current === "deferred"}
                     onClick={() =>
                       onStatusChange(order.id, "delivered")
                     }
