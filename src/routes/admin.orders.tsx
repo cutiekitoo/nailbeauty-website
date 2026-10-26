@@ -442,11 +442,50 @@ function AdminOrders() {
       setOrderView("deferred");
       setStatusFilter("all");
     } catch (error) {
-      toast.error(
+      // Supabase/PostgREST errors are not always native Error instances.
+      // Read their structured message so the actual database problem is visible.
+      const errorMessage =
         error instanceof Error
           ? error.message
-          : "Impossible de différer cette commande.",
-      );
+          : error &&
+              typeof error === "object" &&
+              "message" in error &&
+              typeof error.message === "string"
+            ? error.message
+            : "";
+
+      const errorCode =
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        typeof error.code === "string"
+          ? error.code
+          : "";
+
+      if (
+        errorCode === "PGRST202" ||
+        (errorMessage.includes("defer_order") &&
+          errorMessage.toLowerCase().includes("schema cache"))
+      ) {
+        toast.error(
+          "La fonction Supabase defer_order est introuvable. Exécute les deux migrations SQL des commandes différées dans l’ordre, puis réessaie.",
+        );
+      } else if (
+        errorMessage.toLowerCase().includes("not authorized") ||
+        errorMessage.toLowerCase().includes("permission denied")
+      ) {
+        toast.error(
+          "Ton compte Supabase n’a pas l’autorisation nécessaire pour différer cette commande. Vérifie le rôle admin et les permissions de la fonction defer_order.",
+        );
+      } else {
+        toast.error(
+          errorMessage
+            ? `Échec du report : ${errorMessage}`
+            : "Impossible de différer cette commande. Aucun détail d’erreur n’a été renvoyé.",
+        );
+      }
+
+      console.error("Failed to defer order", error);
     } finally {
       setIsDeferring(false);
     }
