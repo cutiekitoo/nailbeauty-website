@@ -64,6 +64,7 @@ import {
 import { ordersService } from "@/lib/api/orders-service";
 import { productsService } from "@/lib/products-service";
 import type { Product } from "@/lib/products-service";
+import type { DeliveryMethod } from "@/lib/shipping-config";
 
 import { formatCurrency } from "@/lib/currency";
 
@@ -1171,6 +1172,11 @@ function OrderDetailsDialog({
   const [addVariantId, setAddVariantId] = useState("");
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isEditingDelivery, setIsEditingDelivery] = useState(false);
+  const [deliveryMethodDraft, setDeliveryMethodDraft] = useState<DeliveryMethod>("home");
+  const [deliveryAddressDraft, setDeliveryAddressDraft] = useState("");
+  const [deliveryOfficeDraft, setDeliveryOfficeDraft] = useState("");
+  const [savingDelivery, setSavingDelivery] = useState(false);
 
   const open = !!order;
   const current = order?.status ?? "pending";
@@ -1180,6 +1186,58 @@ function OrderDetailsDialog({
     "confirmed",
     "shipped",
   ].includes(current);
+  const canChangeDelivery = ["pending", "confirmed", "deferred"].includes(current);
+
+  const startEditingDelivery = () => {
+    if (!order || !canChangeDelivery) return;
+    setDeliveryMethodDraft(order.delivery.method);
+    setDeliveryAddressDraft(order.delivery.address ?? "");
+    setDeliveryOfficeDraft(order.delivery.officeLocation ?? "");
+    setIsEditingDelivery(true);
+  };
+
+  const saveDeliveryChanges = async () => {
+    if (!order) return;
+
+    if (deliveryMethodDraft === "home" && !deliveryAddressDraft.trim()) {
+      toast.error("Renseigne l’adresse complète pour la livraison à domicile.");
+      return;
+    }
+    if (deliveryMethodDraft === "office" && !deliveryOfficeDraft.trim()) {
+      toast.error("Renseigne le bureau DHD choisi.");
+      return;
+    }
+
+    setSavingDelivery(true);
+    try {
+      await ordersService.updateDelivery(order.id, {
+        method: deliveryMethodDraft,
+        address: deliveryMethodDraft === "home" ? deliveryAddressDraft.trim() : null,
+        officeLocation: deliveryMethodDraft === "office" ? deliveryOfficeDraft.trim() : null,
+      });
+      setIsEditingDelivery(false);
+      toast.success("Livraison mise à jour. Les frais et le total ont été recalculés.");
+      try {
+        await onSaved(order.id);
+      } catch {
+        toast.error("La livraison a été enregistrée, mais l’affichage n’a pas pu être actualisé. Recharge la page.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+            ? error.message
+            : "";
+      toast.error(
+        message
+          ? `Impossible de modifier la livraison : ${message}`
+          : "Impossible de modifier la livraison. Vérifie les migrations Supabase et réessaie.",
+      );
+    } finally {
+      setSavingDelivery(false);
+    }
+  };
 
   const draftSubtotal = draft.reduce(
     (sum, item) => sum + item.unitPrice * item.quantity,
@@ -1406,6 +1464,7 @@ function OrderDetailsDialog({
       onOpenChange={(isOpen) => {
         if (!isOpen) {
           setIsEditing(false);
+          setIsEditingDelivery(false);
           onClose();
         }
       }}
@@ -1436,35 +1495,122 @@ function OrderDetailsDialog({
                 />
               </InfoCard>
 
-              <InfoCard title="Delivery">
-                <Row
-                  k="Wilaya"
-                  v={`${order.delivery.wilayaCode} — ${order.delivery.wilayaName}`}
-                />
+              <div className="rounded-2xl border border-border/60 bg-card p-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Delivery</p>
+                  {!isEditingDelivery && canChangeDelivery && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg"
+                      onClick={startEditingDelivery}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Modifier la livraison
+                    </Button>
+                  )}
+                </div>
 
-                <Row
-                  k="Method"
-                  v={
-                    order.delivery.method === "home"
-                      ? "Home Delivery"
-                      : "DHD Office Pickup"
-                  }
-                />
+                {isEditingDelivery ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="order-delivery-method">
+                        Méthode de livraison
+                      </label>
+                      <Select
+                        value={deliveryMethodDraft}
+                        onValueChange={(value) => setDeliveryMethodDraft(value as DeliveryMethod)}
+                      >
+                        <SelectTrigger id="order-delivery-method" className="rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="home">Livraison à domicile</SelectItem>
+                          <SelectItem value="office">Retrait au bureau DHD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {order.delivery.address && (
-                  <Row
-                    k="Address"
-                    v={order.delivery.address}
-                  />
+                    {deliveryMethodDraft === "home" ? (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor="order-delivery-address">
+                          Adresse complète
+                        </label>
+                        <Input
+                          id="order-delivery-address"
+                          value={deliveryAddressDraft}
+                          onChange={(event) => setDeliveryAddressDraft(event.target.value)}
+                          placeholder="Adresse de livraison à domicile"
+                          className="rounded-xl"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor="order-delivery-office">
+                          Bureau DHD choisi
+                        </label>
+                        <Input
+                          id="order-delivery-office"
+                          value={deliveryOfficeDraft}
+                          onChange={(event) => setDeliveryOfficeDraft(event.target.value)}
+                          placeholder="Nom ou adresse du bureau DHD"
+                          className="rounded-xl"
+                        />
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      Les frais de livraison et le total seront recalculés selon le tarif configuré pour cette wilaya.
+                    </p>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={savingDelivery}
+                        onClick={() => setIsEditingDelivery(false)}
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        type="button"
+                        className="rounded-xl"
+                        disabled={savingDelivery}
+                        onClick={() => void saveDeliveryChanges()}
+                      >
+                        {savingDelivery ? "Enregistrement…" : "Enregistrer la livraison"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Row
+                      k="Wilaya"
+                      v={`${order.delivery.wilayaCode} — ${order.delivery.wilayaName}`}
+                    />
+                    <Row
+                      k="Method"
+                      v={
+                        order.delivery.method === "home"
+                          ? "Home Delivery"
+                          : "DHD Office Pickup"
+                      }
+                    />
+                    {order.delivery.address && (
+                      <Row k="Address" v={order.delivery.address} />
+                    )}
+                    {order.delivery.officeLocation && (
+                      <Row k="Office" v={order.delivery.officeLocation} />
+                    )}
+                    {!canChangeDelivery && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Le mode de livraison ne peut plus être modifié après l’expédition.
+                      </p>
+                    )}
+                  </>
                 )}
-
-                {order.delivery.officeLocation && (
-                  <Row
-                    k="Office"
-                    v={order.delivery.officeLocation}
-                  />
-                )}
-              </InfoCard>
+              </div>
             </div>
 
             {/* Status update */}

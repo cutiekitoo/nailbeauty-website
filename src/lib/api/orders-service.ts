@@ -111,6 +111,24 @@ export const ordersService = {
     if (error) throw error;
   },
 
+  async updateDelivery(
+    orderId: string,
+    delivery: {
+      method: DeliveryMethod;
+      address: string | null;
+      officeLocation: string | null;
+    },
+  ): Promise<void> {
+    const { error } = await supabase.rpc("update_order_delivery", {
+      p_order_id: orderId,
+      p_delivery_method: delivery.method,
+      p_address: delivery.address,
+      p_office_location: delivery.officeLocation,
+    });
+
+    if (error) throw error;
+  },
+
   async editOrder(
     orderId: string,
     items: Array<{

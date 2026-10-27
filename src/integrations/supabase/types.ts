@@ -279,6 +279,15 @@ export interface Database {
         }
         Returns: Json
       }
+      update_order_delivery: {
+        Args: {
+          p_order_id: string
+          p_delivery_method: "home" | "office"
+          p_address: string | null
+          p_office_location: string | null
+        }
+        Returns: Json
+      }
       restore_stock: {
         Args: {
           p_order_id: string
