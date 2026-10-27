@@ -39,6 +39,7 @@ function fromDbOrder(row: any, items: any[]): Order {
     paymentMethod: row.payment_method,
     status: row.status,
     notes: row.notes || undefined,
+    internalNote: row.internal_note || undefined,
     deferredUntil: row.deferred_until ?? null,
     deferredNote: row.deferred_note || undefined,
   };
@@ -108,6 +109,14 @@ export const ordersService = {
       p_deferred_note: deferredNote.trim(),
     });
 
+    if (error) throw error;
+  },
+
+  async updateInternalNote(orderId: string, note: string): Promise<void> {
+    const { error } = await supabase.rpc("update_order_internal_note", {
+      p_order_id: orderId,
+      p_internal_note: note.trim() || null,
+    });
     if (error) throw error;
   },
 

@@ -102,6 +102,7 @@ export interface Database {
           payment_method: string
           status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
           notes: string | null
+          internal_note: string | null
           deferred_until: string | null
           deferred_note: string | null
           stock_restored: boolean
@@ -125,6 +126,7 @@ export interface Database {
           payment_method: string
           status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
           notes?: string | null
+          internal_note?: string | null
           deferred_until?: string | null
           deferred_note?: string | null
           stock_restored?: boolean
@@ -148,6 +150,7 @@ export interface Database {
           payment_method?: string
           status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'deferred'
           notes?: string | null
+          internal_note?: string | null
           deferred_until?: string | null
           deferred_note?: string | null
           stock_restored?: boolean
@@ -276,6 +279,13 @@ export interface Database {
           p_order_id: string
           p_deferred_until: string | null
           p_deferred_note: string
+        }
+        Returns: Json
+      }
+      update_order_internal_note: {
+        Args: {
+          p_order_id: string
+          p_internal_note: string | null
         }
         Returns: Json
       }

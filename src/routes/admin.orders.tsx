@@ -65,6 +65,7 @@ import { ordersService } from "@/lib/api/orders-service";
 import { productsService } from "@/lib/products-service";
 import type { Product } from "@/lib/products-service";
 import type { DeliveryMethod } from "@/lib/shipping-config";
+import type { DeliveryMethod } from "@/lib/shipping-config";
 
 import { formatCurrency } from "@/lib/currency";
 
@@ -1177,6 +1178,9 @@ function OrderDetailsDialog({
   const [deliveryAddressDraft, setDeliveryAddressDraft] = useState("");
   const [deliveryOfficeDraft, setDeliveryOfficeDraft] = useState("");
   const [savingDelivery, setSavingDelivery] = useState(false);
+  const [isEditingInternalNote, setIsEditingInternalNote] = useState(false);
+  const [internalNoteDraft, setInternalNoteDraft] = useState("");
+  const [savingInternalNote, setSavingInternalNote] = useState(false);
 
   const open = !!order;
   const current = order?.status ?? "pending";
@@ -1236,6 +1240,45 @@ function OrderDetailsDialog({
       );
     } finally {
       setSavingDelivery(false);
+    }
+  };
+
+  const startEditingInternalNote = () => {
+    setInternalNoteDraft(order?.internalNote ?? "");
+    setIsEditingInternalNote(true);
+  };
+
+  const saveInternalNote = async () => {
+    if (!order) return;
+    if (internalNoteDraft.length > 2000) {
+      toast.error("La note interne ne peut pas dépasser 2 000 caractères.");
+      return;
+    }
+
+    setSavingInternalNote(true);
+    try {
+      await ordersService.updateInternalNote(order.id, internalNoteDraft);
+      setIsEditingInternalNote(false);
+      toast.success("Note interne enregistrée.");
+      try {
+        await onSaved(order.id);
+      } catch {
+        toast.error("La note a été enregistrée, mais l’affichage n’a pas pu être actualisé. Recharge la page.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+            ? error.message
+            : "";
+      toast.error(
+        message
+          ? `Impossible d’enregistrer la note : ${message}`
+          : "Impossible d’enregistrer la note interne. Vérifie la migration Supabase puis réessaie.",
+      );
+    } finally {
+      setSavingInternalNote(false);
     }
   };
 
@@ -1465,6 +1508,7 @@ function OrderDetailsDialog({
         if (!isOpen) {
           setIsEditing(false);
           setIsEditingDelivery(false);
+          setIsEditingInternalNote(false);
           onClose();
         }
       }}
@@ -1987,6 +2031,76 @@ function OrderDetailsDialog({
                   )}
                 </span>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-card p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Note interne</p>
+                  <p className="text-xs text-muted-foreground">
+                    Visible uniquement dans l’administration.
+                  </p>
+                </div>
+                {!isEditingInternalNote && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={startEditingInternalNote}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {order.internalNote ? "Modifier la note" : "Ajouter une note"}
+                  </Button>
+                )}
+              </div>
+
+              {isEditingInternalNote ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={internalNoteDraft}
+                    onChange={(event) => setInternalNoteDraft(event.target.value)}
+                    placeholder="Ex. : La cliente a demandé un appel avant l’envoi."
+                    rows={3}
+                    maxLength={2000}
+                    className="w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {internalNoteDraft.length}/2000 caractères
+                    </span>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={savingInternalNote}
+                        onClick={() => {
+                          setIsEditingInternalNote(false);
+                          setInternalNoteDraft(order.internalNote ?? "");
+                        }}
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        type="button"
+                        className="rounded-xl"
+                        disabled={savingInternalNote}
+                        onClick={() => void saveInternalNote()}
+                      >
+                        {savingInternalNote ? "Enregistrement…" : "Enregistrer la note"}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Laisse le champ vide pour supprimer la note interne.
+                  </p>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                  {order.internalNote || "Aucune note interne pour cette commande."}
+                </p>
+              )}
             </div>
 
             {current === "deferred" && (

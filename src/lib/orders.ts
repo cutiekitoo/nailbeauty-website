@@ -43,6 +43,7 @@ export type Order = {
   paymentMethod: "cod";
   status: OrderStatus;
   notes?: string;
+  internalNote?: string | null;
   deferredUntil?: string | null;
   deferredNote?: string | null;
 };
