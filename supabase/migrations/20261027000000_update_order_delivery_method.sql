@@ -72,7 +72,6 @@ begin
     office_location = case when p_delivery_method = 'office' then btrim(p_office_location) else null end,
     shipping_fee = v_shipping_fee,
     total = v_total,
-    updated_at = now()
   where id = p_order_id;
 
   return jsonb_build_object(

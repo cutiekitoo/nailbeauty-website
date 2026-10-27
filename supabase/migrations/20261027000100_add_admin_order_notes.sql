@@ -26,7 +26,6 @@ begin
   update public.orders
   set
     internal_note = nullif(btrim(coalesce(p_internal_note, '')), ''),
-    updated_at = now()
   where id = p_order_id
   returning internal_note into v_saved_note;
 
