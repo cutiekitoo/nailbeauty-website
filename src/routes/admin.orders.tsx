@@ -65,7 +65,6 @@ import { ordersService } from "@/lib/api/orders-service";
 import { productsService } from "@/lib/products-service";
 import type { Product } from "@/lib/products-service";
 import type { DeliveryMethod } from "@/lib/shipping-config";
-import type { DeliveryMethod } from "@/lib/shipping-config";
 
 import { formatCurrency } from "@/lib/currency";
 
