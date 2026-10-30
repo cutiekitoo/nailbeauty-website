@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${siteUrl}/ambassador/login`,
+      redirectTo: `${siteUrl}/ambassador/activate`,
       data: { full_name: fullName },
     });
     if (inviteError || !invited.user) {
