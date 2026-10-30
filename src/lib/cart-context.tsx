@@ -17,6 +17,7 @@ import {
 } from "./products-service";
 
 import { trackAddToCart } from "./meta-pixel";
+import { supabase } from "../integrations/supabase/client";
 
 export type CartItem = {
   id: string;
@@ -64,11 +65,15 @@ type CartCtx = {
   ) => Promise<void>;
 
   clear: () => void;
+  ambassadorCode: string;
+  applyAmbassadorCode: (code: string) => Promise<boolean>;
+  removeAmbassadorCode: () => void;
 };
 
 const Ctx = createContext<CartCtx | null>(null);
 
 const STORAGE_KEY = "nail-beauty-cart-v1";
+const AMBASSADOR_CODE_KEY = "nailbeauty-ambassador-code";
 
 export function CartProvider({
   children,
@@ -79,6 +84,7 @@ export function CartProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [cartProducts, setCartProducts] = useState<Product[]>([]);
+  const [ambassadorCode, setAmbassadorCode] = useState("");
   const cartProductsRef = useRef<Product[]>([]);
 
   useEffect(() => {
@@ -98,6 +104,26 @@ export function CartProvider({
 
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const savedCode = localStorage.getItem(AMBASSADOR_CODE_KEY);
+    if (!savedCode) return;
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.rpc("validate_ambassador_code", {
+        p_code: savedCode,
+      });
+      const valid = !error && data?.valid === true;
+      if (!active) return;
+      if (valid) {
+        setAmbassadorCode(savedCode.toUpperCase());
+      } else {
+        localStorage.removeItem(AMBASSADOR_CODE_KEY);
+      }
+    })();
+    return () => { active = false; };
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -449,8 +475,33 @@ export function CartProvider({
       });
     };
 
+    const applyAmbassadorCode = async (code: string): Promise<boolean> => {
+      const normalized = code.trim().toUpperCase();
+      if (!/^[A-Z0-9_-]{3,24}$/.test(normalized)) {
+        toast.error("Code ambassadrice invalide");
+        return false;
+      }
+      const { data, error } = await supabase.rpc("validate_ambassador_code", {
+        p_code: normalized,
+      });
+      if (error || data?.valid !== true) {
+        toast.error("Ce code est invalide ou inactif");
+        return false;
+      }
+      setAmbassadorCode(normalized);
+      localStorage.setItem(AMBASSADOR_CODE_KEY, normalized);
+      toast.success("Code ambassadrice appliqué");
+      return true;
+    };
+
+    const removeAmbassadorCode = () => {
+      setAmbassadorCode("");
+      localStorage.removeItem(AMBASSADOR_CODE_KEY);
+    };
+
     const clear = () => {
       setItems([]);
+      removeAmbassadorCode();
     };
 
     return {
@@ -468,8 +519,11 @@ export function CartProvider({
       remove,
       setQuantity,
       clear,
+      ambassadorCode,
+      applyAmbassadorCode,
+      removeAmbassadorCode,
     };
-  }, [items, isOpen, cartProducts]);
+  }, [items, isOpen, cartProducts, ambassadorCode]);
 
   return (
     <Ctx.Provider value={value}>
