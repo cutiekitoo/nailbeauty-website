@@ -214,7 +214,7 @@ begin
       and o.delivered_at >= (v_month_start::timestamp at time zone 'Africa/Algiers')
       and o.delivered_at < (v_next_month::timestamp at time zone 'Africa/Algiers')),
     'month_pending',(select count(*) from public.orders o where o.ambassador_id=a.id and o.status in('pending','confirmed','shipped','deferred')),
-    'payable_amount',(select coalesce(sum(c.amount),0) from public.ambassador_commissions c where c.ambassador_id=a.id and c.status='pending_review' and c.eligible_at<=now()),
+    'payable_amount',(select coalesce(sum(c.amount),0) from public.ambassador_commissions c where c.ambassador_id=a.id and (c.status='payable' or (c.status='pending_review' and c.eligible_at<=now()))),
     'review_amount',(select coalesce(sum(c.amount),0) from public.ambassador_commissions c where c.ambassador_id=a.id and c.status='pending_review' and c.eligible_at>now()),
     'reversal_balance',(select coalesce(sum(ad.remaining_amount),0) from public.ambassador_commission_adjustments ad where ad.ambassador_id=a.id and ad.remaining_amount>0),
     'total_paid',(select coalesce(sum(p.amount),0) from public.ambassador_payouts p where p.ambassador_id=a.id)
@@ -416,6 +416,7 @@ begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
   select * into v_a from public.ambassadors where user_id=auth.uid();
   if not found then raise exception 'Ambassador profile not found'; end if;
+  if not v_a.is_active then raise exception 'Ambassador account is suspended'; end if;
 
   update public.ambassador_commissions set status='payable'
     where ambassador_id=v_a.id and status='pending_review' and eligible_at<=now();
