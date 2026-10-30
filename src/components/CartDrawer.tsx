@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   X,
@@ -7,6 +7,9 @@ import {
   Trash2,
   ShoppingBag,
   AlertTriangle,
+  Tag,
+  Check,
+  XCircle,
 } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { formatCurrency } from "@/lib/currency";
@@ -21,7 +24,25 @@ export function CartDrawer() {
     remove,
     hasOutOfStock,
     outOfStockItems,
+    ambassadorCode,
+    applyAmbassadorCode,
+    removeAmbassadorCode,
   } = useCart();
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState("");
+  const [codeLoading, setCodeLoading] = useState(false);
+
+  const handleApplyCode = async () => {
+    setCodeError("");
+    setCodeLoading(true);
+    try {
+      const applied = await applyAmbassadorCode(codeInput);
+      if (applied) setCodeInput("");
+      else setCodeError("Code invalide ou compte ambassadrice suspendu.");
+    } finally {
+      setCodeLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -228,6 +249,41 @@ export function CartDrawer() {
                   </p>
                 </div>
               )}
+
+              <div className="rounded-2xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Tag className="h-4 w-4 text-primary" />
+                  Code ambassadrice
+                </div>
+                {ambassadorCode ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary px-3 py-2">
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                      <Check className="h-4 w-4" /> {ambassadorCode}
+                    </span>
+                    <button type="button" onClick={removeAmbassadorCode} className="text-xs text-muted-foreground hover:text-destructive inline-flex items-center gap-1">
+                      <XCircle className="h-4 w-4" /> Retirer
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        value={codeInput}
+                        onChange={(event) => { setCodeInput(event.target.value.toUpperCase()); setCodeError(""); }}
+                        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void handleApplyCode(); } }}
+                        placeholder="Saisir le code"
+                        maxLength={24}
+                        className="min-w-0 flex-1 h-10 px-3 rounded-xl bg-card border border-border text-sm uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Code ambassadrice"
+                      />
+                      <button type="button" onClick={() => void handleApplyCode()} disabled={codeLoading || !codeInput.trim()} className="px-4 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">
+                        {codeLoading ? "..." : "Appliquer"}
+                      </button>
+                    </div>
+                    {codeError && <p className="text-xs text-destructive">{codeError}</p>}
+                  </>
+                )}
+              </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
