@@ -145,10 +145,10 @@ begin
     values(p_ambassador_id,p_period_month,v_count,100,'eligible')
     on conflict(ambassador_id,period_month) do update set
       delivered_count=excluded.delivered_count,
-      status=case when public.ambassador_monthly_rewards.status='given' then 'given' else 'eligible' end;
+      status=case when public.ambassador_monthly_rewards.status in ('prepared','given','cancelled') then public.ambassador_monthly_rewards.status else 'eligible' end;
   elsif exists(select 1 from public.ambassador_monthly_rewards where ambassador_id=p_ambassador_id and period_month=p_period_month) then
     update public.ambassador_monthly_rewards set delivered_count=v_count,
-      status=case when status='given' then 'given' else 'cancelled' end
+      status=case when status in ('prepared','given','cancelled') then status else 'cancelled' end
     where ambassador_id=p_ambassador_id and period_month=p_period_month;
   end if;
 end;
@@ -229,7 +229,6 @@ create or replace function public.get_ambassador_admin_details(p_ambassador_id u
 returns jsonb language plpgsql stable security definer set search_path=public as $$
 declare v_result jsonb;
 begin
-  if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
   if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
   select jsonb_build_object(
     'profile',jsonb_build_object(
@@ -412,6 +411,7 @@ declare
   v_review numeric(12,2);
   v_payable numeric(12,2);
   v_paid numeric(12,2);
+  v_month_paid numeric(12,2);
   v_adjustment numeric(12,2);
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
@@ -432,6 +432,11 @@ begin
   select coalesce(sum(amount),0) into v_payable from public.ambassador_commissions
     where ambassador_id=v_a.id and status='payable';
   select coalesce(sum(amount),0) into v_paid from public.ambassador_payouts where ambassador_id=v_a.id;
+  select coalesce(sum(amount),0) into v_month_paid
+    from public.ambassador_payouts
+    where ambassador_id=v_a.id
+      and paid_at >= (v_month::timestamp at time zone 'Africa/Algiers')
+      and paid_at < (v_next::timestamp at time zone 'Africa/Algiers');
   select coalesce(sum(remaining_amount),0) into v_adjustment from public.ambassador_commission_adjustments
     where ambassador_id=v_a.id and remaining_amount>0;
 
@@ -444,7 +449,7 @@ begin
     'current_month',jsonb_build_object(
       'period_month',v_month,'delivered_count',v_delivered,'pending_orders',v_pending,
       'commission_under_review',v_review,'commission_payable',greatest(0,v_payable-v_adjustment),
-      'commission_paid',v_paid,'reward_threshold',100,'reward_progress',least(100,v_delivered)
+      'commission_paid',v_month_paid,'reward_threshold',100,'reward_progress',least(100,v_delivered)
     ),
     'all_time',jsonb_build_object(
       'delivered_count',(select count(*) from public.orders where ambassador_id=v_a.id and status='delivered'),
