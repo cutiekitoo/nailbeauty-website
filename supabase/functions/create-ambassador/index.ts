@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     });
     const { data: { user }, error: userError } = await caller.auth.getUser();
-    if (userError || !user) return Response.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
+    if (userError || !user) return jsonResponse({ error: "Unauthorized" }, 401, origin);
 
     const { data: isAdmin, error: roleError } = await caller.rpc("has_role", {
       _user_id: user.id,
