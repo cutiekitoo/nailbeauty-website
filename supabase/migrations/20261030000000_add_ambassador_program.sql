@@ -498,7 +498,7 @@ begin
         from public.orders o
         left join public.ambassador_commissions c on c.order_id=o.id
         left join public.ambassador_payout_commissions pc on pc.commission_id=c.id
-        where o.ambassador_id=v_a.id and o.delivered_at is not null and o.status='delivered'
+        where o.ambassador_id=v_a.id and o.delivered_at is not null
         group by 1
       ) x
     ),'[]'::jsonb),
