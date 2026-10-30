@@ -307,13 +307,17 @@ $$;
 revoke all on function public.update_ambassador_payment_details(text,text,text) from public;
 grant execute on function public.update_ambassador_payment_details(text,text,text) to authenticated;
 
--- 10. Monthly payout: commissions older than seven days are settled; post-payment returns offset later payouts.
+-- 10. Monthly payout: settle only commissions earned in the selected Algeria calendar month
+-- once their seven-day review period has elapsed; post-payment returns offset later payouts.
 create or replace function public.record_ambassador_monthly_payout(
   p_ambassador_id uuid,p_period_month date,p_payment_reference text default null,p_note text default null
 )
-returns jsonb language plpgsql security definer set search_path=public as $$
+returns jsonb language plpgsql security definer set search_path=public as $
 declare
   v_profile public.ambassadors%rowtype;
+  v_period_month date;
+  v_period_start timestamptz;
+  v_period_end timestamptz;
   v_gross numeric(12,2);
   v_adjustment_total numeric(12,2);
   v_adjustment_used numeric(12,2);
@@ -329,11 +333,22 @@ begin
   if v_profile.payment_method is null or v_profile.payment_identifier is null then
     raise exception 'The ambassador has not configured CCP or BaridiMob payment details';
   end if;
+
+  v_period_month:=coalesce(p_period_month,date_trunc('month',timezone('Africa/Algiers',now()))::date);
+  if v_period_month<>date_trunc('month',v_period_month::timestamp)::date then
+    raise exception 'Payout period must be the first day of a calendar month';
+  end if;
+  v_period_start:=v_period_month::timestamp at time zone 'Africa/Algiers';
+  v_period_end:=(v_period_month+interval '1 month')::timestamp at time zone 'Africa/Algiers';
+
   update public.ambassador_commissions set status='payable'
-    where ambassador_id=p_ambassador_id and status='pending_review' and eligible_at<=now();
+    where ambassador_id=p_ambassador_id and status='pending_review'
+      and eligible_at<=now() and earned_at>=v_period_start and earned_at<v_period_end;
   select coalesce(sum(amount),0) into v_gross from public.ambassador_commissions
-    where ambassador_id=p_ambassador_id and status='payable';
-  if v_gross<=0 then raise exception 'No payable commissions are available'; end if;
+    where ambassador_id=p_ambassador_id and status='payable'
+      and earned_at>=v_period_start and earned_at<v_period_end;
+  if v_gross<=0 then raise exception 'No payable commissions are available for the selected month'; end if;
+
   select coalesce(sum(remaining_amount),0) into v_adjustment_total
     from public.ambassador_commission_adjustments where ambassador_id=p_ambassador_id and remaining_amount>0;
   v_adjustment_used:=least(v_gross,v_adjustment_total);
@@ -345,9 +360,7 @@ begin
     ambassador_id,period_month,gross_amount,adjustment_amount,amount,payment_method,
     payment_identifier,payment_reference,note,created_by
   ) values(
-    p_ambassador_id,
-    coalesce(p_period_month,date_trunc('month',timezone('Africa/Algiers',now()))::date),
-    v_gross,v_adjustment_used,v_net,
+    p_ambassador_id,v_period_month,v_gross,v_adjustment_used,v_net,
     case when v_net>0 then v_profile.payment_method else null end,
     case when v_net>0 then v_profile.payment_identifier else null end,
     nullif(btrim(coalesce(p_payment_reference,'')),''),
@@ -356,9 +369,12 @@ begin
   ) returning id into v_payout_id;
   insert into public.ambassador_payout_commissions(payout_id,commission_id,amount)
     select v_payout_id,id,amount from public.ambassador_commissions
-    where ambassador_id=p_ambassador_id and status='payable';
+    where ambassador_id=p_ambassador_id and status='payable'
+      and earned_at>=v_period_start and earned_at<v_period_end;
   update public.ambassador_commissions set status='paid',paid_at=now()
-    where ambassador_id=p_ambassador_id and status='payable';
+    where ambassador_id=p_ambassador_id and status='payable'
+      and earned_at>=v_period_start and earned_at<v_period_end;
+
   v_left:=v_adjustment_used;
   for v_adjustment in select id,remaining_amount from public.ambassador_commission_adjustments
     where ambassador_id=p_ambassador_id and remaining_amount>0 order by created_at,id for update
@@ -375,7 +391,7 @@ begin
     'adjustment_amount',v_adjustment_used,'paid_amount',v_net,
     'payment_method',case when v_net>0 then v_profile.payment_method else null end);
 end;
-$$;
+$;
 revoke all on function public.record_ambassador_monthly_payout(uuid,date,text,text) from public;
 grant execute on function public.record_ambassador_monthly_payout(uuid,date,text,text) to authenticated;
 
@@ -478,8 +494,10 @@ begin
         select date_trunc('month',o.delivered_at at time zone 'Africa/Algiers')::date as period_month,
           count(*)::integer as delivered_count,
           coalesce(sum(case when c.status<>'reversed' then c.amount else 0 end),0) as commission_earned,
-          coalesce(sum(case when c.status='paid' then c.amount else 0 end),0) as commission_paid
-        from public.orders o left join public.ambassador_commissions c on c.order_id=o.id
+          coalesce(sum(pc.amount) filter (where pc.commission_id is not null),0) as commission_paid
+        from public.orders o
+        left join public.ambassador_commissions c on c.order_id=o.id
+        left join public.ambassador_payout_commissions pc on pc.commission_id=c.id
         where o.ambassador_id=v_a.id and o.delivered_at is not null and o.status='delivered'
         group by 1
       ) x
