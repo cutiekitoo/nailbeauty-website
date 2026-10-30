@@ -785,10 +785,15 @@ begin
     'subtotal', v_subtotal,
     'shipping_fee', v_shipping_fee,
     'total', v_total,
-    'status', 'pending'
+    'status', 'pending',
+    'confirmation_token', (
+      select o.confirmation_token
+      from public.orders o
+      where o.id = v_order_id
+    )
   );
 end;
-$$;
+$;
 revoke all on function public.create_order(jsonb) from public;
 grant execute on function public.create_order(jsonb) to anon,authenticated;
 
