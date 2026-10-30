@@ -230,6 +230,7 @@ returns jsonb language plpgsql stable security definer set search_path=public as
 declare v_result jsonb;
 begin
   if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
+  if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
   select jsonb_build_object(
     'profile',jsonb_build_object(
       'id',a.id,'full_name',a.full_name,'email',a.email,'referral_code',a.referral_code,'is_active',a.is_active,
