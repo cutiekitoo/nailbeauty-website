@@ -263,7 +263,7 @@ revoke all on function public.get_ambassador_admin_details(uuid) from public;
 grant execute on function public.get_ambassador_admin_details(uuid) to authenticated;
 
 create or replace function public.set_ambassador_status(p_ambassador_id uuid,p_is_active boolean)
-returns jsonb language plpgsql security definer set search_path=public as $payout_fn$$
+returns jsonb language plpgsql security definer set search_path=public as $
 begin
   if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
   update public.ambassadors set is_active=p_is_active where id=p_ambassador_id;
@@ -809,12 +809,7 @@ begin
     'subtotal', v_subtotal,
     'shipping_fee', v_shipping_fee,
     'total', v_total,
-    'status', 'pending',
-    'confirmation_token', (
-      select o.confirmation_token
-      from public.orders o
-      where o.id = v_order_id
-    )
+    'status', 'pending'
   );
 end;
 $$;
