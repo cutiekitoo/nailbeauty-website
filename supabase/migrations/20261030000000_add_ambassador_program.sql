@@ -263,7 +263,7 @@ revoke all on function public.get_ambassador_admin_details(uuid) from public;
 grant execute on function public.get_ambassador_admin_details(uuid) to authenticated;
 
 create or replace function public.set_ambassador_status(p_ambassador_id uuid,p_is_active boolean)
-returns jsonb language plpgsql security definer set search_path=public as $$
+returns jsonb language plpgsql security definer set search_path=public as $payout_fn$$
 begin
   if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
   update public.ambassadors set is_active=p_is_active where id=p_ambassador_id;
@@ -391,7 +391,7 @@ begin
     'adjustment_amount',v_adjustment_used,'paid_amount',v_net,
     'payment_method',case when v_net>0 then v_profile.payment_method else null end);
 end;
-$;
+$payout_fn$;
 revoke all on function public.record_ambassador_monthly_payout(uuid,date,text,text) from public;
 grant execute on function public.record_ambassador_monthly_payout(uuid,date,text,text) to authenticated;
 
