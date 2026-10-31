@@ -19,7 +19,7 @@ const statusLabel: Record<string, string> = {
   pending: "En attente", confirmed: "Confirmée", shipped: "Expédiée", delivered: "Livrée",
   cancelled: "Annulée", returned: "Retournée", deferred: "Reportée",
   pending_delivery: "En attente de livraison", under_review: "Délai de validation",
-  pending_review: "Délai de validation", payable: "À régler", paid: "Payée", reversed: "Annulée",
+  pending_review: "Délai de validation", payable: "À régler", paid: "Payée", reversed: "Annulée",\n  eligible: "Débloqué", prepared: "En préparation", given: "Remis", cancelled: "Non acquis",
 };
 
 function AmbassadorDashboardPage() {
@@ -110,16 +110,24 @@ function AmbassadorDashboardPage() {
           <Stat icon={<PackageCheck className="h-5 w-5" />} label="Commandes livrées ce mois" value={String(month.delivered_count)} />
           <Stat icon={<Wallet className="h-5 w-5" />} label="Commissions en validation" value={formatCurrency(month.commission_under_review)} />
           <Stat icon={<Wallet className="h-5 w-5" />} label="Commissions disponibles" value={formatCurrency(month.commission_payable)} />
-          <Stat icon={<Gift className="h-5 w-5" />} label="Cadeau mensuel" value={`${month.reward_progress}/${month.reward_threshold}`} />
+          <Stat icon={<Gift className="h-5 w-5" />} label="Progression des cadeaux" value={`${month.reward_progress}/200`} />
         </section>
 
         <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-2xl">Progression du cadeau</h2>
-            <span className="text-sm font-semibold">{month.reward_progress}%</span>
+          <h2 className="font-display text-2xl mb-2">Mes paliers cadeaux</h2>
+          <p className="text-sm text-muted-foreground mb-5">Les commandes livrées sont comptabilisées chaque mois. Trois cadeaux maximum : à 50, 100 et 200 commandes.</p>
+          <div className="space-y-5">
+            {giftTiers.map(({ threshold, reward, progress }) => (
+              <div key={threshold}>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div><p className="font-semibold">{threshold} commandes livrées</p><p className="text-xs text-muted-foreground">{reward?.gift_name ?? (reward ? "Cadeau à définir" : "Prochain palier")}</p></div>
+                  <Badge variant={reward?.status === "given" ? "default" : "secondary"}>{reward ? (statusLabel[reward.status] ?? reward.status) : `${Math.min(month.delivered_count, threshold)}/${threshold}`}</Badge>
+                </div>
+                <div className="h-2.5 rounded-full bg-secondary overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
+              </div>
+            ))}
           </div>
-          <div className="h-3 rounded-full bg-secondary overflow-hidden mt-4"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${month.reward_progress}%` }} /></div>
-          <p className="text-sm text-muted-foreground mt-3">Atteignez 100 commandes livrées pendant le même mois pour débloquer votre cadeau.</p>
+          {month.delivered_count >= 200 && <p className="text-sm text-muted-foreground mt-5">Les trois cadeaux du mois sont débloqués. Le prochain cycle commencera le mois prochain.</p>}
         </section>
 
         <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
