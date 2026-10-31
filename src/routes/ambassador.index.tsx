@@ -19,7 +19,8 @@ const statusLabel: Record<string, string> = {
   pending: "En attente", confirmed: "Confirmée", shipped: "Expédiée", delivered: "Livrée",
   cancelled: "Annulée", returned: "Retournée", deferred: "Reportée",
   pending_delivery: "En attente de livraison", under_review: "Délai de validation",
-  pending_review: "Délai de validation", payable: "À régler", paid: "Payée", reversed: "Annulée",\n  eligible: "Débloqué", prepared: "En préparation", given: "Remis", cancelled: "Non acquis",
+  pending_review: "Délai de validation", payable: "À régler", paid: "Payée", reversed: "Annulée",
+  eligible: "Débloqué", prepared: "En préparation", given: "Remis",
 };
 
 function AmbassadorDashboardPage() {
@@ -81,6 +82,11 @@ function AmbassadorDashboardPage() {
   if (!dashboard) return null;
 
   const month = dashboard.current_month;
+  const giftTiers = [50, 100, 200].map((threshold) => ({
+    threshold,
+    reward: dashboard.rewards.find((reward) => reward.period_month === month.period_month && reward.threshold === threshold),
+    progress: Math.min(100, Math.round((month.delivered_count / threshold) * 100)),
+  }));
   return (
     <main className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
