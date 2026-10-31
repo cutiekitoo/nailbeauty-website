@@ -263,14 +263,14 @@ revoke all on function public.get_ambassador_admin_details(uuid) from public;
 grant execute on function public.get_ambassador_admin_details(uuid) to authenticated;
 
 create or replace function public.set_ambassador_status(p_ambassador_id uuid,p_is_active boolean)
-returns jsonb language plpgsql security definer set search_path=public as $
+returns jsonb language plpgsql security definer set search_path=public as $status_fn$
 begin
   if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
   update public.ambassadors set is_active=p_is_active where id=p_ambassador_id;
   if not found then raise exception 'Ambassador not found'; end if;
   return jsonb_build_object('success',true,'is_active',p_is_active);
 end;
-$$;
+$status_fn$;
 revoke all on function public.set_ambassador_status(uuid,boolean) from public;
 grant execute on function public.set_ambassador_status(uuid,boolean) to authenticated;
 
