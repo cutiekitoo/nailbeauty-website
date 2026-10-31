@@ -330,10 +330,6 @@ begin
   if auth.uid() is null or not public.has_role(auth.uid(),''admin'') then raise exception ''Not authorized''; end if;
   select * into v_profile from public.ambassadors where id=p_ambassador_id for update;
   if not found then raise exception ''Ambassador not found''; end if;
-  if v_profile.payment_method is null or v_profile.payment_identifier is null then
-    raise exception ''The ambassador has not configured CCP or BaridiMob payment details'';
-  end if;
-
   v_period_month:=coalesce(p_period_month,date_trunc(''month'',timezone(''Africa/Algiers'',now()))::date);
   if v_period_month<>date_trunc(''month'',v_period_month::timestamp)::date then
     raise exception ''Payout period must be the first day of a calendar month'';
@@ -353,6 +349,9 @@ begin
     from public.ambassador_commission_adjustments where ambassador_id=p_ambassador_id and remaining_amount>0;
   v_adjustment_used:=least(v_gross,v_adjustment_total);
   v_net:=v_gross-v_adjustment_used;
+  if v_net>0 and (v_profile.payment_method is null or v_profile.payment_identifier is null) then
+    raise exception ''The ambassador has not configured CCP or BaridiMob payment details'';
+  end if;
   if v_net>0 and nullif(btrim(coalesce(p_payment_reference,'''')),'''') is null then
     raise exception ''Payment reference is required for a non-zero payout'';
   end if;
