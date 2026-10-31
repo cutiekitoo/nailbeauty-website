@@ -312,7 +312,7 @@ grant execute on function public.update_ambassador_payment_details(text,text,tex
 create or replace function public.record_ambassador_monthly_payout(
   p_ambassador_id uuid,p_period_month date,p_payment_reference text default null,p_note text default null
 )
-returns jsonb language plpgsql security definer set search_path=public as $
+returns jsonb language plpgsql security definer set search_path=public as '$
 declare
   v_profile public.ambassadors%rowtype;
   v_period_month date;
@@ -327,34 +327,34 @@ declare
   v_to_apply numeric(12,2);
   v_left numeric(12,2);
 begin
-  if auth.uid() is null or not public.has_role(auth.uid(),'admin') then raise exception 'Not authorized'; end if;
+  if auth.uid() is null or not public.has_role(auth.uid(),''admin'') then raise exception ''Not authorized''; end if;
   select * into v_profile from public.ambassadors where id=p_ambassador_id for update;
-  if not found then raise exception 'Ambassador not found'; end if;
+  if not found then raise exception ''Ambassador not found''; end if;
   if v_profile.payment_method is null or v_profile.payment_identifier is null then
-    raise exception 'The ambassador has not configured CCP or BaridiMob payment details';
+    raise exception ''The ambassador has not configured CCP or BaridiMob payment details'';
   end if;
 
-  v_period_month:=coalesce(p_period_month,date_trunc('month',timezone('Africa/Algiers',now()))::date);
-  if v_period_month<>date_trunc('month',v_period_month::timestamp)::date then
-    raise exception 'Payout period must be the first day of a calendar month';
+  v_period_month:=coalesce(p_period_month,date_trunc(''month'',timezone(''Africa/Algiers'',now()))::date);
+  if v_period_month<>date_trunc(''month'',v_period_month::timestamp)::date then
+    raise exception ''Payout period must be the first day of a calendar month'';
   end if;
-  v_period_start:=v_period_month::timestamp at time zone 'Africa/Algiers';
-  v_period_end:=(v_period_month+interval '1 month')::timestamp at time zone 'Africa/Algiers';
+  v_period_start:=v_period_month::timestamp at time zone ''Africa/Algiers'';
+  v_period_end:=(v_period_month+interval ''1 month'')::timestamp at time zone ''Africa/Algiers'';
 
-  update public.ambassador_commissions set status='payable'
-    where ambassador_id=p_ambassador_id and status='pending_review'
+  update public.ambassador_commissions set status=''payable''
+    where ambassador_id=p_ambassador_id and status=''pending_review''
       and eligible_at<=now() and earned_at>=v_period_start and earned_at<v_period_end;
   select coalesce(sum(amount),0) into v_gross from public.ambassador_commissions
-    where ambassador_id=p_ambassador_id and status='payable'
+    where ambassador_id=p_ambassador_id and status=''payable''
       and earned_at>=v_period_start and earned_at<v_period_end;
-  if v_gross<=0 then raise exception 'No payable commissions are available for the selected month'; end if;
+  if v_gross<=0 then raise exception ''No payable commissions are available for the selected month''; end if;
 
   select coalesce(sum(remaining_amount),0) into v_adjustment_total
     from public.ambassador_commission_adjustments where ambassador_id=p_ambassador_id and remaining_amount>0;
   v_adjustment_used:=least(v_gross,v_adjustment_total);
   v_net:=v_gross-v_adjustment_used;
-  if v_net>0 and nullif(btrim(coalesce(p_payment_reference,'')),'') is null then
-    raise exception 'Payment reference is required for a non-zero payout';
+  if v_net>0 and nullif(btrim(coalesce(p_payment_reference,'''')),'''') is null then
+    raise exception ''Payment reference is required for a non-zero payout'';
   end if;
   insert into public.ambassador_payouts(
     ambassador_id,period_month,gross_amount,adjustment_amount,amount,payment_method,
@@ -363,16 +363,16 @@ begin
     p_ambassador_id,v_period_month,v_gross,v_adjustment_used,v_net,
     case when v_net>0 then v_profile.payment_method else null end,
     case when v_net>0 then v_profile.payment_identifier else null end,
-    nullif(btrim(coalesce(p_payment_reference,'')),''),
-    nullif(btrim(coalesce(p_note,'')),''),
+    nullif(btrim(coalesce(p_payment_reference,'''')),''''),
+    nullif(btrim(coalesce(p_note,'''')),''''),
     auth.uid()
   ) returning id into v_payout_id;
   insert into public.ambassador_payout_commissions(payout_id,commission_id,amount)
     select v_payout_id,id,amount from public.ambassador_commissions
-    where ambassador_id=p_ambassador_id and status='payable'
+    where ambassador_id=p_ambassador_id and status=''payable''
       and earned_at>=v_period_start and earned_at<v_period_end;
-  update public.ambassador_commissions set status='paid',paid_at=now()
-    where ambassador_id=p_ambassador_id and status='payable'
+  update public.ambassador_commissions set status=''paid'',paid_at=now()
+    where ambassador_id=p_ambassador_id and status=''payable''
       and earned_at>=v_period_start and earned_at<v_period_end;
 
   v_left:=v_adjustment_used;
@@ -387,11 +387,10 @@ begin
       set remaining_amount=remaining_amount-v_to_apply where id=v_adjustment.id;
     v_left:=v_left-v_to_apply;
   end loop;
-  return jsonb_build_object('success',true,'payout_id',v_payout_id,'gross_amount',v_gross,
-    'adjustment_amount',v_adjustment_used,'paid_amount',v_net,
-    'payment_method',case when v_net>0 then v_profile.payment_method else null end);
-end;
-$payout_fn$;
+  return jsonb_build_object(''success'',true,''payout_id'',v_payout_id,''gross_amount'',v_gross,
+    ''adjustment_amount'',v_adjustment_used,''paid_amount'',v_net,
+    ''payment_method'',case when v_net>0 then v_profile.payment_method else null end);
+end;';
 revoke all on function public.record_ambassador_monthly_payout(uuid,date,text,text) from public;
 grant execute on function public.record_ambassador_monthly_payout(uuid,date,text,text) to authenticated;
 
