@@ -187,12 +187,12 @@ begin
       'period_month',x.period_month,'delivered_count',x.delivered_count,
       'commission_earned',x.commission_earned,'commission_paid',x.commission_paid) order by x.period_month desc)
       from (select date_trunc('month',o.delivered_at at time zone 'Africa/Algiers')::date as period_month,
-        count(*)::integer as delivered_count,
-        coalesce(sum(case when c.status<>'reversed' then c.amount else 0 end),0) as commission_earned,
+        count(*) filter (where o.status='delivered')::integer as delivered_count,
+        coalesce(sum(case when o.status='delivered' and c.status<>'reversed' then c.amount else 0 end),0) as commission_earned,
         coalesce(sum(pc.amount),0) as commission_paid
         from public.orders o left join public.ambassador_commissions c on c.order_id=o.id
         left join public.ambassador_payout_commissions pc on pc.commission_id=c.id
-        where o.ambassador_id=v_a.id and o.status='delivered' and o.delivered_at is not null
+        where o.ambassador_id=v_a.id and o.delivered_at is not null
         group by 1) x),'[]'::jsonb),
     'payouts',coalesce((select jsonb_agg(jsonb_build_object(
       'period_month',p.period_month,'gross_amount',p.gross_amount,'adjustment_amount',p.adjustment_amount,
