@@ -47,7 +47,7 @@ begin
       on conflict (ambassador_id, period_month, threshold) do update
       set delivered_count = excluded.delivered_count,
           status = case
-            when public.ambassador_monthly_rewards.status in ('prepared', 'given')
+            when public.ambassador_monthly_rewards.status = 'given'
               then public.ambassador_monthly_rewards.status
             else 'eligible'
           end;
@@ -55,7 +55,7 @@ begin
       update public.ambassador_monthly_rewards
       set delivered_count = v_count,
           status = case
-            when status in ('prepared', 'given') then status
+            when status = 'given' then status
             else 'cancelled'
           end
       where ambassador_id = p_ambassador_id
