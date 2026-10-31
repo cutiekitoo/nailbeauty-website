@@ -312,7 +312,7 @@ grant execute on function public.update_ambassador_payment_details(text,text,tex
 create or replace function public.record_ambassador_monthly_payout(
   p_ambassador_id uuid,p_period_month date,p_payment_reference text default null,p_note text default null
 )
-returns jsonb language plpgsql security definer set search_path=public as '$
+returns jsonb language plpgsql security definer set search_path=public as '
 declare
   v_profile public.ambassadors%rowtype;
   v_period_month date;
