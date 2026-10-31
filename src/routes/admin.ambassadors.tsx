@@ -111,7 +111,7 @@ function AdminAmbassadorsPage() {
       defaultPeriod.slice(0, 7),
     );
     if (enteredPeriod === null) return;
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(enteredPeriod.trim())) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(enteredPeriod.trim())) {
       toast.error("Veuillez saisir un mois valide au format AAAA-MM.");
       return;
     }
