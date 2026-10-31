@@ -98,13 +98,30 @@ function AdminAmbassadorsPage() {
   };
 
   const pay = async (row: Record<string, any>) => {
+    const localMonth = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Algiers",
+      year: "numeric",
+      month: "2-digit",
+    }).format(new Date());
+    const [year, monthNumber] = localMonth.split("-").map(Number);
+    const previousMonthDate = new Date(Date.UTC(year, monthNumber - 2, 1));
+    const defaultPeriod = previousMonthDate.toISOString().slice(0, 10);
+    const enteredPeriod = window.prompt(
+      "Mois des commissions à régler (AAAA-MM). Par défaut : mois précédent",
+      defaultPeriod.slice(0, 7),
+    );
+    if (enteredPeriod === null) return;
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(enteredPeriod.trim())) {
+      toast.error("Veuillez saisir un mois valide au format AAAA-MM.");
+      return;
+    }
+    const period = `${enteredPeriod.trim()}-01`;
     const reference = window.prompt("Référence du règlement CCP / BaridiMob");
     if (reference === null) return;
     const note = window.prompt("Note facultative", "") ?? "";
     setBusy(true);
     try {
-      const month = new Date().toISOString().slice(0, 7) + "-01";
-      const result = await ambassadorService.recordPayout(row.id, month, reference, note);
+      const result = await ambassadorService.recordPayout(row.id, period, reference, note);
       toast.success(`Règlement enregistré : ${formatCurrency(Number(result?.paid_amount ?? 0))}`);
       await refresh(row.id);
     } catch (err) { toast.error(err instanceof Error ? err.message : "Règlement impossible."); }
