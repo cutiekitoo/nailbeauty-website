@@ -234,6 +234,7 @@ export async function createOrder(payload: {
   }>;
   paymentMethod: "cod";
   notes?: string;
+  ambassadorCode?: string;
 }): Promise<{
   success: boolean;
   orderId?: string;

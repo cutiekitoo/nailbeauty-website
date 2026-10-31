@@ -48,6 +48,7 @@ subtotal,
 clear,
 hasOutOfStock,
 outOfStockItems,
+ambassadorCode,
 } = useCart();
 
 const navigate = useNavigate();
@@ -313,6 +314,7 @@ try {
     ),
     paymentMethod: "cod",
     notes: undefined,
+    ambassadorCode: ambassadorCode || undefined,
   });
 
   if (!result.success) {
