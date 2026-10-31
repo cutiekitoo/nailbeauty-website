@@ -47,6 +47,7 @@ export type AmbassadorDashboard = {
     paid_at: string;
   }>;
   rewards: Array<{
+    id: string;
     period_month: string;
     delivered_count: number;
     threshold: number;
