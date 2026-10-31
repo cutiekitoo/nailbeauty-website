@@ -41,7 +41,7 @@ begin
     raise exception 'Gift name is required';
   end if;
 
-  if p_status in ('eligible', 'prepared', 'given') then
+  if p_status in ('eligible', 'prepared', 'given') and v_reward.status <> 'given' then
     select count(*)::integer
       into v_delivered_count
     from public.orders o
