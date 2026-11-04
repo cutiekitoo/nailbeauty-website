@@ -30,6 +30,7 @@ function AmbassadorDashboardPage() {
   const [saving, setSaving] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"ccp" | "baridimob">("ccp");
   const [accountName, setAccountName] = useState("");
+  const [wilaya, setWilaya] = useState("");
   const [identifier, setIdentifier] = useState("");
 
   const load = async () => {
@@ -43,6 +44,7 @@ function AmbassadorDashboardPage() {
       setDashboard(data);
       setPaymentMethod(data.profile.payment_method ?? "ccp");
       setAccountName(data.profile.payment_account_name ?? "");
+      setWilaya(data.profile.wilaya ?? "");
       setIdentifier(data.profile.payment_identifier ?? "");
     } catch {
       navigate({ to: "/ambassador/login" });
@@ -57,7 +59,7 @@ function AmbassadorDashboardPage() {
     event.preventDefault();
     setSaving(true);
     try {
-      await ambassadorService.updatePaymentDetails({ paymentMethod, accountName, identifier });
+      await ambassadorService.updatePaymentDetails({ paymentMethod, accountName, identifier, wilaya });
       toast.success("Coordonnées de paiement enregistrées.");
       await load();
     } catch (error) {
@@ -152,7 +154,8 @@ function AmbassadorDashboardPage() {
                 <option value="ccp">CCP</option><option value="baridimob">BaridiMob</option>
               </select>
             </div>
-            <div className="space-y-2"><Label>Nom du titulaire</Label><Input value={accountName} onChange={(e) => setAccountName(e.target.value)} required placeholder="Nom complet" /></div>
+            <div className="space-y-2"><Label>Nom complet</Label><Input value={accountName} onChange={(e) => setAccountName(e.target.value)} required placeholder="Nom et prénom" /></div>
+            <div className="space-y-2"><Label>Wilaya</Label><select value={wilaya} onChange={(e) => setWilaya(e.target.value)} required className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm"><option value="">Choisir votre wilaya</option>{<option value="Adrar">Adrar</option><option value="Chlef">Chlef</option><option value="Laghouat">Laghouat</option><option value="Oum El Bouaghi">Oum El Bouaghi</option><option value="Batna">Batna</option><option value="Béjaïa">Béjaïa</option><option value="Biskra">Biskra</option><option value="Béchar">Béchar</option><option value="Blida">Blida</option><option value="Bouira">Bouira</option><option value="Tamanrasset">Tamanrasset</option><option value="Tébessa">Tébessa</option><option value="Tlemcen">Tlemcen</option><option value="Tiaret">Tiaret</option><option value="Tizi Ouzou">Tizi Ouzou</option><option value="Alger">Alger</option><option value="Djelfa">Djelfa</option><option value="Jijel">Jijel</option><option value="Sétif">Sétif</option><option value="Saïda">Saïda</option><option value="Skikda">Skikda</option><option value="Sidi Bel Abbès">Sidi Bel Abbès</option><option value="Annaba">Annaba</option><option value="Guelma">Guelma</option><option value="Constantine">Constantine</option><option value="Médéa">Médéa</option><option value="Mostaganem">Mostaganem</option><option value="M'Sila">M'Sila</option><option value="Mascara">Mascara</option><option value="Ouargla">Ouargla</option><option value="Oran">Oran</option><option value="El Bayadh">El Bayadh</option><option value="Illizi">Illizi</option><option value="Bordj Bou Arréridj">Bordj Bou Arréridj</option><option value="Boumerdès">Boumerdès</option><option value="El Tarf">El Tarf</option><option value="Tindouf">Tindouf</option><option value="Tissemsilt">Tissemsilt</option><option value="El Oued">El Oued</option><option value="Khenchela">Khenchela</option><option value="Souk Ahras">Souk Ahras</option><option value="Tipaza">Tipaza</option><option value="Mila">Mila</option><option value="Aïn Defla">Aïn Defla</option><option value="Naâma">Naâma</option><option value="Aïn Témouchent">Aïn Témouchent</option><option value="Ghardaïa">Ghardaïa</option><option value="Relizane">Relizane</option><option value="Timimoun">Timimoun</option><option value="Bordj Badji Mokhtar">Bordj Badji Mokhtar</option><option value="Ouled Djellal">Ouled Djellal</option><option value="Béni Abbès">Béni Abbès</option><option value="In Salah">In Salah</option><option value="In Guezzam">In Guezzam</option><option value="Touggourt">Touggourt</option><option value="Djanet">Djanet</option><option value="El M'Ghair">El M'Ghair</option><option value="El Meniaa">El Meniaa</option></select></div>
             <div className="space-y-2 sm:col-span-2"><Label>{paymentMethod === "ccp" ? "Numéro de compte CCP / clé" : "Numéro de téléphone BaridiMob"}</Label><Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} required placeholder={paymentMethod === "ccp" ? "Compte CCP" : "05 / 06 / 07..."} /></div>
             <div className="sm:col-span-2"><Button type="submit" disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? "Enregistrement..." : "Enregistrer mes coordonnées"}</Button></div>
           </form>
