@@ -847,6 +847,18 @@ function AdminDashboard() {
                     </div>
                   </Link>
                 ))}
+                <Link
+                  to="/admin/ambassadors"
+                  className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm hover:shadow-md transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-accent/50 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Ambassadrices</h3>
+                    <p className="text-xs text-muted-foreground">Comptes, commissions, paiements et cadeaux</p>
+                  </div>
+                </Link>
               </div>
             </section>
 
