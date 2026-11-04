@@ -60,6 +60,8 @@ export type AmbassadorDashboard = {
   gift_tiers: Array<{ threshold: number; gift_name: string | null; image_url: string | null }>;
 };
 
+export type AmbassadorNotification = { id: string; notification_type: string; title: string; message: string; created_at: string; read_at: string | null };
+
 export const ambassadorService = {
   async login(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -99,7 +101,7 @@ export const ambassadorService = {
     return { ...(data as AmbassadorDashboard), profile: { ...(data as AmbassadorDashboard).profile, wilaya: paymentProfile?.wilaya ?? null, phone: paymentProfile?.phone ?? null }, gift_tiers: (tiers ?? []) as AmbassadorDashboard["gift_tiers"] };
   },
 
-  async updatePaymentDetails(input: {
+  async getMyNotifications(): Promise<AmbassadorNotification[]> {\n    const { data, error } = await supabase.rpc("get_my_ambassador_notifications");\n    if (error) throw error;\n    return (data ?? []) as AmbassadorNotification[];\n  },\n\n  async markMyNotificationsRead() {\n    const { error } = await supabase.rpc("mark_my_ambassador_notifications_read");\n    if (error) throw error;\n  },\n\n  async updatePaymentDetails(input: {
     paymentMethod: "ccp" | "baridimob";
     accountName: string;
     identifier: string;
