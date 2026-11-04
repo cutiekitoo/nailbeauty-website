@@ -120,11 +120,16 @@ export const ambassadorService = {
   },
 
   async getAdminDetails(id: string) {
-    const { data, error } = await supabase.rpc("get_ambassador_admin_details", {
-      p_ambassador_id: id,
-    });
+    const [{ data, error }, { data: paymentProfile, error: paymentError }] = await Promise.all([
+      supabase.rpc("get_ambassador_admin_details", { p_ambassador_id: id }),
+      supabase.rpc("get_ambassador_payment_profile_admin", { p_ambassador_id: id }),
+    ]);
     if (error) throw error;
-    return data as Record<string, any>;
+    if (paymentError) throw paymentError;
+    return {
+      ...(data as Record<string, any>),
+      profile: { ...(data as Record<string, any>).profile, ...(paymentProfile ?? {}) },
+    };
   },
 
   async setStatus(id: string, active: boolean) {
