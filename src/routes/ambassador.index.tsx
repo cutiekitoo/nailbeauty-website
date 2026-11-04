@@ -140,6 +140,17 @@ function AmbassadorDashboardPage() {
         </section>
 
         <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="font-display text-2xl flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /> Mes notifications {notifications.some((notification) => !notification.read_at) && <Badge>{notifications.filter((notification) => !notification.read_at).length} nouvelles</Badge>}</h2>
+            {notifications.some((notification) => !notification.read_at) && <Button size="sm" variant="outline" disabled={markingNotifications} onClick={() => void markNotificationsRead()}><CheckCheck className="mr-2 h-4 w-4" />{markingNotifications ? "Mise à jour..." : "Tout marquer comme lu"}</Button>}
+          </div>
+          {notifications.length ? <div className="space-y-3">{notifications.map((notification) => <div key={notification.id} className={`rounded-2xl border p-4 ${notification.read_at ? "border-border/60 bg-background/40" : "border-primary/30 bg-secondary/50"}`}>
+            <div className="flex items-start justify-between gap-3"><p className="font-semibold text-sm">{notification.title}</p><span className="text-xs text-muted-foreground shrink-0">{dateLabel(notification.created_at)}</span></div>
+            <p className="text-sm text-muted-foreground mt-1">{notification.message}</p>
+          </div>)}</div> : <p className="text-sm text-muted-foreground">Tu recevras ici les félicitations pour tes paliers cadeaux, les commissions validées et les paiements effectués.</p>}
+        </section>
+
+        <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
           <h2 className="font-display text-2xl mb-2">Mes paliers cadeaux</h2>
           <p className="text-sm text-muted-foreground mb-5">Les commandes livrées sont comptabilisées chaque mois. Trois cadeaux maximum : à 50, 100 et 200 commandes.</p>
           <div className="space-y-5">
