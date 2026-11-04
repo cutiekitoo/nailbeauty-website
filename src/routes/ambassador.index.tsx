@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { LogOut, Sparkles, Wallet, PackageCheck, Gift, Copy, Save, Loader2 } from "lucide-react";
+import { LogOut, Sparkles, Wallet, PackageCheck, Gift, Copy, Save, Loader2, Bell, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ambassadorService, type AmbassadorDashboard } from "@/lib/ambassador-service";
+import { ambassadorService, type AmbassadorDashboard, type AmbassadorNotification } from "@/lib/ambassador-service";
 import { formatCurrency } from "@/lib/currency";
 import { toast } from "sonner";
 
@@ -27,7 +27,7 @@ const statusLabel: Record<string, string> = {
 
 function AmbassadorDashboardPage() {
   const navigate = useNavigate();
-  const [dashboard, setDashboard] = useState<AmbassadorDashboard | null>(null);
+  const [dashboard, setDashboard] = useState<AmbassadorDashboard | null>(null);\n  const [notifications, setNotifications] = useState<AmbassadorNotification[]>([]);\n  const [markingNotifications, setMarkingNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"ccp" | "baridimob">("ccp");
@@ -38,7 +38,7 @@ function AmbassadorDashboardPage() {
 
   const load = async () => {
     try {
-      const data = await ambassadorService.getMyDashboard();
+      const data = await ambassadorService.getMyDashboard();\n      try { setNotifications(await ambassadorService.getMyNotifications()); } catch { setNotifications([]); }
       if (!data.profile.is_active) {
         await ambassadorService.logout();
         navigate({ to: "/ambassador/login" });
@@ -73,7 +73,7 @@ function AmbassadorDashboardPage() {
     }
   };
 
-  const copyCode = async () => {
+  const markNotificationsRead = async () => {\n    setMarkingNotifications(true);\n    try {\n      await ambassadorService.markMyNotificationsRead();\n      setNotifications((current) => current.map((notification) => ({ ...notification, read_at: notification.read_at ?? new Date().toISOString() })));\n      toast.success("Notifications marquées comme lues.");\n    } catch (error) { toast.error(error instanceof Error ? error.message : "Impossible de mettre à jour les notifications."); }\n    finally { setMarkingNotifications(false); }\n  };\n\n  const copyCode = async () => {
     if (!dashboard) return;
     await navigator.clipboard.writeText(dashboard.profile.referral_code);
     toast.success("Code copié.");
