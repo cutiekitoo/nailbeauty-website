@@ -85,6 +85,7 @@ function AmbassadorDashboardPage() {
   const giftTiers = [50, 100, 200].map((threshold) => ({
     threshold,
     reward: dashboard.rewards.find((reward) => reward.period_month === month.period_month && reward.threshold === threshold),
+    setting: dashboard.gift_tiers.find((tier) => tier.threshold === threshold),
     progress: Math.min(100, Math.round((month.delivered_count / threshold) * 100)),
   }));
   return (
@@ -123,13 +124,19 @@ function AmbassadorDashboardPage() {
           <h2 className="font-display text-2xl mb-2">Mes paliers cadeaux</h2>
           <p className="text-sm text-muted-foreground mb-5">Les commandes livrées sont comptabilisées chaque mois. Trois cadeaux maximum : à 50, 100 et 200 commandes.</p>
           <div className="space-y-5">
-            {giftTiers.map(({ threshold, reward, progress }) => (
-              <div key={threshold}>
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div><p className="font-semibold">{threshold} commandes livrées</p><p className="text-xs text-muted-foreground">{reward?.gift_name ?? (reward ? "Cadeau à définir" : "Prochain palier")}</p></div>
-                  <Badge variant={reward?.status === "given" ? "default" : "secondary"}>{reward ? (statusLabel[reward.status] ?? reward.status) : `${Math.min(month.delivered_count, threshold)}/${threshold}`}</Badge>
+            {giftTiers.map(({ threshold, reward, setting, progress }) => (
+              <div key={threshold} className="rounded-2xl border border-border/70 bg-background/60 p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  {setting?.image_url ? <img src={setting.image_url} alt={setting.gift_name || `Cadeau du palier ${threshold}`} className="h-28 w-28 shrink-0 rounded-2xl object-cover border border-border shadow-sm" /> : <div className="h-28 w-28 shrink-0 rounded-2xl bg-secondary flex items-center justify-center text-muted-foreground"><Gift className="h-8 w-8" /></div>}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div><p className="font-semibold">{threshold} commandes livrées</p><p className="text-sm text-muted-foreground">{setting?.gift_name || reward?.gift_name || "Le cadeau sera bientôt dévoilé"}</p></div>
+                      <Badge variant={reward?.status === "given" ? "default" : "secondary"}>{reward ? (statusLabel[reward.status] ?? reward.status) : `${Math.min(month.delivered_count, threshold)}/${threshold}`}</Badge>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-secondary overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
+                    <p className="text-xs text-muted-foreground mt-2">{month.delivered_count >= threshold ? "Palier atteint !" : `Encore ${threshold - month.delivered_count} commande${threshold - month.delivered_count > 1 ? "s" : ""} pour débloquer ce cadeau`}</p>
+                  </div>
                 </div>
-                <div className="h-2.5 rounded-full bg-secondary overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
               </div>
             ))}
           </div>
