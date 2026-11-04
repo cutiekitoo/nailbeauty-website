@@ -11,6 +11,7 @@ export type AmbassadorDashboard = {
     payment_account_name: string | null;
     payment_identifier: string | null;
     wilaya: string | null;
+    phone: string | null;
   };
   current_month: {
     period_month: string;
@@ -95,7 +96,7 @@ export const ambassadorService = {
     if (tiersError) throw tiersError;
     const { data: paymentProfile, error: profileError } = await supabase.rpc("get_my_ambassador_payment_profile");
     if (profileError) throw profileError;
-    return { ...(data as AmbassadorDashboard), profile: { ...(data as AmbassadorDashboard).profile, wilaya: paymentProfile?.wilaya ?? null }, gift_tiers: (tiers ?? []) as AmbassadorDashboard["gift_tiers"] };
+    return { ...(data as AmbassadorDashboard), profile: { ...(data as AmbassadorDashboard).profile, wilaya: paymentProfile?.wilaya ?? null, phone: paymentProfile?.phone ?? null }, gift_tiers: (tiers ?? []) as AmbassadorDashboard["gift_tiers"] };
   },
 
   async updatePaymentDetails(input: {
@@ -103,12 +104,14 @@ export const ambassadorService = {
     accountName: string;
     identifier: string;
     wilaya: string;
+    personalPhone: string;
   }) {
     const { error } = await supabase.rpc("update_ambassador_payment_profile", {
       p_payment_method: input.paymentMethod,
       p_payment_account_name: input.accountName,
       p_payment_identifier: input.identifier,
       p_wilaya: input.wilaya,
+      p_phone: input.personalPhone,
     });
     if (error) throw error;
   },
