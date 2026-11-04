@@ -27,7 +27,9 @@ const statusLabel: Record<string, string> = {
 
 function AmbassadorDashboardPage() {
   const navigate = useNavigate();
-  const [dashboard, setDashboard] = useState<AmbassadorDashboard | null>(null);\n  const [notifications, setNotifications] = useState<AmbassadorNotification[]>([]);\n  const [markingNotifications, setMarkingNotifications] = useState(false);
+  const [dashboard, setDashboard] = useState<AmbassadorDashboard | null>(null);
+  const [notifications, setNotifications] = useState<AmbassadorNotification[]>([]);
+  const [markingNotifications, setMarkingNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"ccp" | "baridimob">("ccp");
@@ -38,7 +40,8 @@ function AmbassadorDashboardPage() {
 
   const load = async () => {
     try {
-      const data = await ambassadorService.getMyDashboard();\n      try { setNotifications(await ambassadorService.getMyNotifications()); } catch { setNotifications([]); }
+      const data = await ambassadorService.getMyDashboard();
+      try { setNotifications(await ambassadorService.getMyNotifications()); } catch { setNotifications([]); }
       if (!data.profile.is_active) {
         await ambassadorService.logout();
         navigate({ to: "/ambassador/login" });
@@ -73,7 +76,17 @@ function AmbassadorDashboardPage() {
     }
   };
 
-  const markNotificationsRead = async () => {\n    setMarkingNotifications(true);\n    try {\n      await ambassadorService.markMyNotificationsRead();\n      setNotifications((current) => current.map((notification) => ({ ...notification, read_at: notification.read_at ?? new Date().toISOString() })));\n      toast.success("Notifications marquées comme lues.");\n    } catch (error) { toast.error(error instanceof Error ? error.message : "Impossible de mettre à jour les notifications."); }\n    finally { setMarkingNotifications(false); }\n  };\n\n  const copyCode = async () => {
+  const markNotificationsRead = async () => {
+    setMarkingNotifications(true);
+    try {
+      await ambassadorService.markMyNotificationsRead();
+      setNotifications((current) => current.map((notification) => ({ ...notification, read_at: notification.read_at ?? new Date().toISOString() })));
+      toast.success("Notifications marquées comme lues.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Impossible de mettre à jour les notifications."); }
+    finally { setMarkingNotifications(false); }
+  };
+
+  const copyCode = async () => {
     if (!dashboard) return;
     await navigator.clipboard.writeText(dashboard.profile.referral_code);
     toast.success("Code copié.");
