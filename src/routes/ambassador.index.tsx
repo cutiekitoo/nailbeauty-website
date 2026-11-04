@@ -34,6 +34,7 @@ function AmbassadorDashboardPage() {
   const [accountName, setAccountName] = useState("");
   const [wilaya, setWilaya] = useState("");
   const [identifier, setIdentifier] = useState("");
+  const [personalPhone, setPersonalPhone] = useState("");
 
   const load = async () => {
     try {
@@ -48,6 +49,7 @@ function AmbassadorDashboardPage() {
       setAccountName(data.profile.payment_account_name ?? "");
       setWilaya(data.profile.wilaya ?? "");
       setIdentifier(data.profile.payment_identifier ?? "");
+      setPersonalPhone(data.profile.phone ?? "");
     } catch {
       navigate({ to: "/ambassador/login" });
     } finally {
@@ -61,7 +63,7 @@ function AmbassadorDashboardPage() {
     event.preventDefault();
     setSaving(true);
     try {
-      await ambassadorService.updatePaymentDetails({ paymentMethod, accountName, identifier, wilaya });
+      await ambassadorService.updatePaymentDetails({ paymentMethod, accountName, identifier, wilaya, personalPhone });
       toast.success("Coordonnées de paiement enregistrées.");
       await load();
     } catch (error) {
@@ -157,8 +159,9 @@ function AmbassadorDashboardPage() {
               </select>
             </div>
             <div className="space-y-2"><Label>Nom complet</Label><Input value={accountName} onChange={(e) => setAccountName(e.target.value)} required placeholder="Nom et prénom" /></div>
+            <div className="space-y-2"><Label>Téléphone personnel</Label><Input type="tel" value={personalPhone} onChange={(e) => setPersonalPhone(e.target.value)} required placeholder="05 / 06 / 07..." /></div>
             <div className="space-y-2"><Label>Wilaya</Label><select value={wilaya} onChange={(e) => setWilaya(e.target.value)} required className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm"><option value="">Choisir votre wilaya</option>{ALGERIA_WILAYAS.map((name) => <option key={name} value={name}>{name}</option>)}</select></div>
-            <div className="space-y-2 sm:col-span-2"><Label>{paymentMethod === "ccp" ? "Numéro de compte CCP / clé" : "Numéro de téléphone BaridiMob"}</Label><Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} required placeholder={paymentMethod === "ccp" ? "Compte CCP" : "05 / 06 / 07..."} /></div>
+            <div className="space-y-2 sm:col-span-2"><Label>RIP (Relevé d’identité postal)</Label><Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} required placeholder="Votre RIP" /></div>
             <div className="sm:col-span-2"><Button type="submit" disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? "Enregistrement..." : "Enregistrer mes coordonnées"}</Button></div>
           </form>
         </section>
