@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Gift, Plus, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowLeft, Gift, ImagePlus, Plus, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
+import { imageStorage } from "@/lib/image-storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,12 +29,16 @@ function AdminAmbassadorsPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  const [giftTiers, setGiftTiers] = useState<Array<{ threshold: number; gift_name: string | null; image_url: string | null }>>([]);
+  const [giftImageUploading, setGiftImageUploading] = useState<number | null>(null);
+  const [giftTierSaving, setGiftTierSaving] = useState<number | null>(null);
 
   const refresh = async (selectedId = selected) => {
     setLoading(true);
     try {
-      const data = await ambassadorService.listAdmin();
+      const [data, tiers] = await Promise.all([ambassadorService.listAdmin(), ambassadorService.listGiftTierSettings()]);
       setRows(data);
+      setGiftTiers(tiers);
       if (selectedId) {
         const detail = await ambassadorService.getAdminDetails(selectedId);
         setDetails(detail);
@@ -128,6 +133,39 @@ function AdminAmbassadorsPage() {
     finally { setBusy(false); }
   };
 
+  const updateGiftTierField = (threshold: number, patch: Partial<{ gift_name: string | null; image_url: string | null }>) => {
+    setGiftTiers((current) => current.map((tier) => tier.threshold === threshold ? { ...tier, ...patch } : tier));
+  };
+
+  const uploadGiftTierImage = async (threshold: number, file: File) => {
+    setGiftImageUploading(threshold);
+    try {
+      const imageUrl = await imageStorage.uploadImage(file, "ambassador-gifts");
+      const tier = giftTiers.find((item) => item.threshold === threshold);
+      await ambassadorService.updateGiftTierSetting(threshold, tier?.gift_name ?? "", imageUrl);
+      updateGiftTierField(threshold, { image_url: imageUrl });
+      toast.success(`Photo du cadeau ${threshold} commandes enregistrée.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Téléversement de la photo impossible.");
+    } finally {
+      setGiftImageUploading(null);
+    }
+  };
+
+  const saveGiftTier = async (threshold: number) => {
+    const tier = giftTiers.find((item) => item.threshold === threshold);
+    if (!tier) return;
+    setGiftTierSaving(threshold);
+    try {
+      await ambassadorService.updateGiftTierSetting(threshold, tier.gift_name ?? "", tier.image_url);
+      toast.success(`Cadeau du palier ${threshold} enregistré.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement du cadeau impossible.");
+    } finally {
+      setGiftTierSaving(null);
+    }
+  };
+
   const updateGift = async (reward: Record<string, any>) => {
     const giftName = window.prompt("Nom du cadeau", reward.gift_name ?? "");
     if (giftName === null) return;
@@ -166,6 +204,29 @@ function AdminAmbassadorsPage() {
             <p className="text-xs text-muted-foreground mt-3">L'ambassadrice reçoit un e-mail d'invitation pour définir son mot de passe.</p>
           </section>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          <section className="rounded-3xl border border-border bg-card p-5">
+            <h2 className="font-display text-xl mb-2">Photos des cadeaux</h2>
+            <p className="text-xs text-muted-foreground mb-4">Ajoutez le nom et la photo du cadeau affiché à chaque palier dans l’espace ambassadrice.</p>
+            <div className="space-y-4">
+              {[50, 100, 200].map((threshold) => {
+                const tier = giftTiers.find((item) => item.threshold === threshold);
+                return <div key={threshold} className="rounded-2xl border border-border p-3 space-y-3">
+                  <p className="font-semibold text-sm">{threshold} commandes livrées</p>
+                  <div className="flex items-center gap-3">
+                    {tier?.image_url ? <img src={tier.image_url} alt={`Cadeau palier ${threshold}`} className="h-20 w-20 rounded-xl object-cover border border-border" /> : <div className="h-20 w-20 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground"><ImagePlus className="h-6 w-6" /></div>}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label>Nom du cadeau</Label>
+                      <Input value={tier?.gift_name ?? ""} placeholder="Ex. Kit nail art" onChange={(event) => updateGiftTierField(threshold, { gift_name: event.target.value })} />
+                      <Label className="block">Photo du cadeau</Label>
+                      <input type="file" accept="image/*" className="block w-full text-xs text-muted-foreground file:mr-2 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-foreground" disabled={giftImageUploading === threshold || busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadGiftTierImage(threshold, file); event.currentTarget.value = ""; }} />
+                      {giftImageUploading === threshold && <p className="text-xs text-muted-foreground">Téléversement...</p>}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" className="w-full" disabled={busy || giftTierSaving === threshold || giftImageUploading === threshold} onClick={() => void saveGiftTier(threshold)}>{giftTierSaving === threshold ? "Enregistrement..." : "Enregistrer le nom"}</Button>
+                </div>;
+              })}
+            </div>
+          </section>
           <section className="rounded-3xl border border-border bg-card p-5">
             <div className="flex items-center justify-between mb-4"><h2 className="font-display text-xl">Comptes</h2><Button variant="ghost" size="icon" onClick={() => void refresh()}><RefreshCw className="h-4 w-4" /></Button></div>
             <div className="space-y-2">
