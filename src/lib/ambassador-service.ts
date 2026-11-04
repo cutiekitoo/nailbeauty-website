@@ -55,6 +55,7 @@ export type AmbassadorDashboard = {
     status: string;
     given_at: string | null;
   }>;
+  gift_tiers: Array<{ threshold: number; gift_name: string | null; image_url: string | null }>;
 };
 
 export const ambassadorService = {
@@ -85,9 +86,13 @@ export const ambassadorService = {
   },
 
   async getMyDashboard(): Promise<AmbassadorDashboard> {
-    const { data, error } = await supabase.rpc("get_my_ambassador_dashboard");
+    const [{ data, error }, { data: tiers, error: tiersError }] = await Promise.all([
+      supabase.rpc("get_my_ambassador_dashboard"),
+      supabase.rpc("get_ambassador_gift_tier_settings"),
+    ]);
     if (error) throw error;
-    return data as AmbassadorDashboard;
+    if (tiersError) throw tiersError;
+    return { ...(data as AmbassadorDashboard), gift_tiers: (tiers ?? []) as AmbassadorDashboard["gift_tiers"] };
   },
 
   async updatePaymentDetails(input: {
@@ -142,6 +147,21 @@ export const ambassadorService = {
     });
     if (error) throw error;
     return data;
+  },
+
+  async listGiftTierSettings() {
+    const { data, error } = await supabase.rpc("get_ambassador_gift_tier_settings");
+    if (error) throw error;
+    return (data ?? []) as Array<{ threshold: number; gift_name: string | null; image_url: string | null }>;
+  },
+
+  async updateGiftTierSetting(threshold: number, giftName: string, imageUrl: string | null) {
+    const { error } = await supabase.rpc("update_ambassador_gift_tier_setting", {
+      p_threshold: threshold,
+      p_gift_name: giftName || null,
+      p_image_url: imageUrl,
+    });
+    if (error) throw error;
   },
 
   async updateReward(id: string, giftName: string, status: string) {
