@@ -101,7 +101,18 @@ export const ambassadorService = {
     return { ...(data as AmbassadorDashboard), profile: { ...(data as AmbassadorDashboard).profile, wilaya: paymentProfile?.wilaya ?? null, phone: paymentProfile?.phone ?? null }, gift_tiers: (tiers ?? []) as AmbassadorDashboard["gift_tiers"] };
   },
 
-  async getMyNotifications(): Promise<AmbassadorNotification[]> {\n    const { data, error } = await supabase.rpc("get_my_ambassador_notifications");\n    if (error) throw error;\n    return (data ?? []) as AmbassadorNotification[];\n  },\n\n  async markMyNotificationsRead() {\n    const { error } = await supabase.rpc("mark_my_ambassador_notifications_read");\n    if (error) throw error;\n  },\n\n  async updatePaymentDetails(input: {
+  async getMyNotifications(): Promise<AmbassadorNotification[]> {
+    const { data, error } = await supabase.rpc("get_my_ambassador_notifications");
+    if (error) throw error;
+    return (data ?? []) as AmbassadorNotification[];
+  },
+
+  async markMyNotificationsRead() {
+    const { error } = await supabase.rpc("mark_my_ambassador_notifications_read");
+    if (error) throw error;
+  },
+
+  async updatePaymentDetails(input: {
     paymentMethod: "ccp" | "baridimob";
     accountName: string;
     identifier: string;
