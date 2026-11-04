@@ -125,7 +125,7 @@ async function prepareImage(file: File): Promise<PreparedImage> {
 }
 
 export const imageStorage = {
-  async uploadImage(file: File): Promise<UploadedImage> {
+  async uploadImage(file: File, folder?: string): Promise<UploadedImage> {
     if (!file.type.startsWith("image/")) {
       throw new Error("Only image files are allowed.");
     }
@@ -135,7 +135,7 @@ export const imageStorage = {
 
     const preparedImage = await prepareImage(file);
     const fileName = generateFileName(preparedImage.extension);
-    const filePath = fileName;
+    const filePath = folder ? `${folder}/${fileName}` : fileName;
 
     const { error } = await supabase.storage
       .from(BUCKET_NAME)
